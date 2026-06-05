@@ -4,16 +4,16 @@ import { createSlider, createSelect, createButton, addDivider } from '../../shar
 // ── 푸리에 계수 정의 ────────────────────────────────────────────────────────
 const WAVEFORMS = {
   square: {
-    label: '사각파',
+    label: 'Square Wave',
     // 홀수 배음만: aₙ = 4/(nπ)
     coeff: n => (n % 2 !== 0) ? 4 / (n * Math.PI) : 0,
   },
   sawtooth: {
-    label: '톱니파',
+    label: 'Sawtooth Wave',
     coeff: n => (2 * Math.pow(-1, n + 1)) / (n * Math.PI),
   },
   triangle: {
-    label: '삼각파',
+    label: 'Triangle Wave',
     coeff: n => {
       if (n % 2 === 0) return 0
       return (Math.pow(-1, (n - 1) / 2) * 8) / (n * n * Math.PI * Math.PI)
@@ -188,7 +188,7 @@ const controlsEl = document.getElementById('controls')
 
 createSlider({
   container: controlsEl,
-  label: '항의 수 N',
+  label: 'Terms N',
   min: 1, max: 50, step: 1, value: state.N,
   format: v => Math.round(v),
   onChange: v => { state.N = Math.round(v); state.trail = [] },
@@ -196,7 +196,7 @@ createSlider({
 
 createSlider({
   container: controlsEl,
-  label: '속도',
+  label: 'Speed',
   min: 0.1, max: 5, step: 0.1, value: state.speed,
   format: v => v.toFixed(1) + '×',
   onChange: v => { state.speed = v },
@@ -204,7 +204,7 @@ createSlider({
 
 createSelect({
   container: controlsEl,
-  label: '파형',
+  label: 'Waveform',
   options: Object.entries(WAVEFORMS).map(([value, { label }]) => ({ value, label })),
   value: state.waveform,
   onChange: v => { state.waveform = v; state.trail = []; state.time = 0 },
@@ -214,16 +214,16 @@ addDivider(controlsEl)
 
 const pauseBtn = createButton({
   container: controlsEl,
-  label: '일시정지',
+  label: 'Pause',
   onClick: () => {
     state.paused = !state.paused
-    pauseBtn.textContent = state.paused ? '▶ 재생' : '일시정지'
+    pauseBtn.textContent = state.paused ? '▶ Play' : 'Pause'
   },
 })
 
 createButton({
   container: controlsEl,
-  label: '초기화',
+  label: 'Reset',
   onClick: () => { state.trail = []; state.time = 0 },
 })
 

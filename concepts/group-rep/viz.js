@@ -359,7 +359,7 @@ export class Visualizer {
     // 투영 안내
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-mono, monospace)'
     ctx.textAlign = 'right'
-    ctx.fillText(`${dim}D → 2D 투영`, W - 12, H - 10)
+    ctx.fillText(`${dim}D → 2D projection`, W - 12, H - 10)
   }
 
   // ── 3D 궤도 카메라 ──────────────────────────────────────────────────────
@@ -448,7 +448,7 @@ export class Visualizer {
     ctx.fillStyle = C.text
     ctx.font = '11px var(--font-sans, sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText('드래그로 회전', 12, H - 10)
+    ctx.fillText('Drag to rotate', 12, H - 10)
   }
 
   // ── 미니 카드용 그리기 ───────────────────────────────────────────────────
