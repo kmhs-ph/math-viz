@@ -36,11 +36,10 @@ const btnReset   = document.getElementById('btn-reset')
 // ── 군 선택 목록 초기화 ───────────────────────────────────────────────────
 const GROUP_ORDER = ['D3', 'D4', 'D5', 'D6', 'S3', 'S4', 'A3', 'A4', 'V4']
 const GROUP_LABELS = {
-  D3: 'D₃ (이면군, |G|=6)',  D4: 'D₄ (이면군, |G|=8)',
-  D5: 'D₅ (이면군, |G|=10)', D6: 'D₆ (이면군, |G|=12)',
-  S3: 'S₃ (대칭군, |G|=6)',  S4: 'S₄ (대칭군, |G|=24)',
-  A3: 'A₃ (교대군, |G|=3)',  A4: 'A₄ (교대군, |G|=12)',
-  V4: 'V₄ (클라인 사군, |G|=4)',
+  D3: 'D₃', D4: 'D₄', D5: 'D₅', D6: 'D₆',
+  S3: 'S₃', S4: 'S₄',
+  A3: 'A₃', A4: 'A₄',
+  V4: 'V₄',
 }
 GROUP_ORDER.forEach(key => {
   if (!GROUPS[key]) return
@@ -178,31 +177,11 @@ function renderGenButtons() {
     genButtons.appendChild(btn)
   })
 
-  // 모든 원소 (그룹 위수 ≤ 12면 표시)
-  if (group.elements.length <= 12) {
-    const sep = document.createElement('div')
-    sep.style.cssText = 'width:100%;height:1px;background:var(--border);margin:4px 0'
-    genButtons.appendChild(sep)
-
-    group.elements.forEach(elem => {
-      const label = group.elementLabel(elem)
-      if (label === 'e') return
-      const btn = document.createElement('button')
-      btn.className = 'gr-gen-btn'; btn.textContent = label
-      btn.style.fontSize = '0.72rem'
-      btn.addEventListener('click', () => {
-        state.composition = [{ element: elem, label }]
-        state.currentElement = elem
-        renderComposition(); applyCurrentElement()
-      })
-      genButtons.appendChild(btn)
-    })
-  }
 }
 
 function appendGen(gen) {
   if (!state.currentElement) state.currentElement = group.elements[0]
-  const newElem = group.multiply(state.currentElement, gen)
+  const newElem = group.multiply(gen, state.currentElement)  // 왼쪽 곱: g → h·g
   const genLabel = group.genLabels[group.id(gen)] || group.elementLabel(gen)
   state.composition.push({ element: gen, label: genLabel })
   state.currentElement = newElem
@@ -219,7 +198,8 @@ function renderComposition() {
     compBox.appendChild(span); normalForm.textContent = 'e'; return
   }
 
-  state.composition.forEach((item, i) => {
+  // 왼쪽 곱이므로 나중에 클릭한 것이 수식의 왼쪽에 표시
+  ;[...state.composition].reverse().forEach((item, i) => {
     if (i > 0) {
       const dot = document.createElement('span')
       dot.className = 'op-dot'; dot.textContent = ' · '
@@ -287,14 +267,7 @@ function updateMiniCards() {
     if (!canvas) return
     const irr = irreps[i]
     const M = irr.getMatrix(group, state.currentElement)
-
-    // 미니 카드는 2D 고정 (dim≥2면 처음 2×2 부분만)
-    let displayM = M, displayDim = irr.dim
-    if (irr.dim > 2) {
-      displayM = [[M[0][0], M[0][1]], [M[1][0], M[1][1]]]
-      displayDim = 2
-    }
-    viz.drawMini(canvas, displayM, state.field, Math.min(irr.dim, 2))
+    viz.drawMini(canvas, M, state.field, irr.dim)
   })
 }
 
@@ -323,9 +296,8 @@ selField.addEventListener('change', () => {
 btnUndo.addEventListener('click', () => {
   if (state.composition.length === 0) return
   state.composition.pop()
-  // 처음부터 다시 곱해 currentElement 재계산
   let elem = group.elements[0]
-  state.composition.forEach(item => { elem = group.multiply(elem, item.element) })
+  state.composition.forEach(item => { elem = group.multiply(item.element, elem) })
   state.currentElement = elem
   renderComposition(); applyCurrentElement()
 })

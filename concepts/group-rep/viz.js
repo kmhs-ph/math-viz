@@ -157,6 +157,7 @@ export class Visualizer {
     if (dim === 1 && field === 'R') this._draw1DR()
     else if (dim === 1 && field === 'C') this._draw1DC()
     else if (dim === 2) this._draw2D()
+    else if (dim === 3) this._draw3D()
     else this._drawND()
   }
 
@@ -352,6 +353,88 @@ export class Visualizer {
     ctx.fillText(`${dim}D → 2D 투영`, W - 12, H - 10)
   }
 
+  // ── 3D 등각투영 (isometric) ──────────────────────────────────────────────
+
+  _draw3D() {
+    const { ctx, W, H, field } = this
+    const ox = W / 2, oy = H / 2
+    const scale = Math.min(W, H) * 0.115
+    const SQ3_2 = Math.sqrt(3) / 2
+    const M = this.currentMatrix
+
+    const getM = (i, j) => field === 'R' ? M[i][j] : M[i][j].re
+    const applyM = ([x, y, z]) => [
+      getM(0,0)*x + getM(0,1)*y + getM(0,2)*z,
+      getM(1,0)*x + getM(1,1)*y + getM(1,2)*z,
+      getM(2,0)*x + getM(2,1)*y + getM(2,2)*z,
+    ]
+    // 등각투영: 관측 방향 [1,1,1], 깊이 = x+y+z (오름차순 = 뒤에서 앞으로)
+    const iso = ([x, y, z]) => [
+      ox + (x - z) * SQ3_2 * scale,
+      oy + ((x + z) * 0.5 - y) * scale,
+    ]
+    const toScreen = v => iso(applyM(v))
+    const depthOf  = v => { const [tx, ty, tz] = applyM(v); return tx + ty + tz }
+
+    // 격자 점
+    const RANGE = 2
+    const dots = []
+    for (let xi = -RANGE; xi <= RANGE; xi++)
+      for (let yi = -RANGE; yi <= RANGE; yi++)
+        for (let zi = -RANGE; zi <= RANGE; zi++)
+          dots.push({ v: [xi, yi, zi], d: depthOf([xi, yi, zi]) })
+    dots.sort((a, b) => a.d - b.d)
+
+    for (const { v } of dots) {
+      const [sx, sy] = toScreen(v)
+      const isOrigin = v[0] === 0 && v[1] === 0 && v[2] === 0
+      ctx.beginPath()
+      ctx.arc(sx, sy, isOrigin ? 3.5 : 1.8, 0, Math.PI * 2)
+      ctx.fillStyle = isOrigin ? C.accentHi : 'rgba(255,255,255,0.18)'
+      ctx.fill()
+    }
+
+    // 큐브
+    const CS = 0.9
+    const VERTS = [
+      [-CS,-CS,-CS], [CS,-CS,-CS], [CS,CS,-CS], [-CS,CS,-CS],
+      [-CS,-CS, CS], [CS,-CS, CS], [CS,CS, CS], [-CS,CS, CS],
+    ]
+    const FACES = [
+      [0,1,2,3], [4,5,6,7],
+      [0,1,5,4], [2,3,7,6],
+      [0,3,7,4], [1,2,6,5],
+    ]
+    const tverts = VERTS.map(applyM)
+    const sverts = tverts.map(iso)
+
+    const facesWithDepth = FACES.map(idx => ({
+      idx,
+      depth: idx.reduce((s, i) => s + tverts[i][0] + tverts[i][1] + tverts[i][2], 0) / idx.length,
+    })).sort((a, b) => a.depth - b.depth)
+
+    for (const { idx } of facesWithDepth) {
+      const pts = idx.map(i => sverts[i])
+      ctx.beginPath()
+      ctx.moveTo(...pts[0])
+      pts.slice(1).forEach(p => ctx.lineTo(...p))
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(91,141,238,0.1)'
+      ctx.fill()
+      ctx.strokeStyle = C.shapeLine
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+    }
+
+    // 기저 축 화살표
+    const axColors = [C.vec1, C.vec2, '#5ce05c']
+    for (let i = 0; i < 3; i++) {
+      const ax = [0, 0, 0]; ax[i] = 1
+      const [sx, sy] = toScreen(ax)
+      drawArrow(ctx, ox, oy, sx, sy, axColors[i], 8)
+    }
+  }
+
   // ── 미니 카드용 그리기 ───────────────────────────────────────────────────
 
   drawMini(canvas, targetMatrix, field, dim) {
@@ -371,6 +454,35 @@ export class Visualizer {
       ctx.fillStyle = C.accentHi; ctx.font = '12px var(--font-mono, monospace)'
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText(formatComplex(z), cx, cy)
+    } else if (dim === 3) {
+      const scale = Math.min(W, H) * 0.1
+      const SQ3_2 = Math.sqrt(3) / 2
+      const get = (i, j) => field === 'R' ? targetMatrix[i][j] : targetMatrix[i][j].re
+      const applyM = ([x, y, z]) => [
+        get(0,0)*x+get(0,1)*y+get(0,2)*z,
+        get(1,0)*x+get(1,1)*y+get(1,2)*z,
+        get(2,0)*x+get(2,1)*y+get(2,2)*z,
+      ]
+      const iso = ([x, y, z]) => [cx + (x-z)*SQ3_2*scale, cy + ((x+z)*0.5-y)*scale]
+      const CS = 0.9
+      const CV = [
+        [-CS,-CS,-CS],[CS,-CS,-CS],[CS,CS,-CS],[-CS,CS,-CS],
+        [-CS,-CS,CS],[CS,-CS,CS],[CS,CS,CS],[-CS,CS,CS],
+      ]
+      const FACES = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,3,7,4],[1,2,6,5]]
+      const tverts = CV.map(applyM)
+      const sverts = tverts.map(iso)
+      const sorted = FACES.map(idx => ({
+        idx,
+        depth: idx.reduce((s, i) => s + tverts[i][0]+tverts[i][1]+tverts[i][2], 0) / idx.length,
+      })).sort((a, b) => a.depth - b.depth)
+      for (const { idx } of sorted) {
+        const pts = idx.map(i => sverts[i])
+        ctx.beginPath(); ctx.moveTo(...pts[0])
+        pts.slice(1).forEach(p => ctx.lineTo(...p)); ctx.closePath()
+        ctx.fillStyle = 'rgba(91,141,238,0.1)'; ctx.fill()
+        ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 0.7; ctx.stroke()
+      }
     } else {
       // 2D 미니 격자
       const unit = Math.min(W, H) * 0.12
