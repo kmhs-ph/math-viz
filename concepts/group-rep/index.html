@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>유한군 표현론 — 수학 시각화</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+  <div class="concept-page">
+
+    <!-- 상단 내비 + 군 선택 -->
+    <nav class="concept-nav">
+      <a class="back-link" href="../../">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        홈
+      </a>
+      <span style="color:var(--border)">|</span>
+      <h1>유한군 표현론</h1>
+
+      <div class="gr-top-bar" style="border:none; padding:0; margin-left:auto;">
+        <div class="ctrl-group">
+          <span class="ctrl-label">군</span>
+          <select id="sel-group"></select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">체</span>
+          <select id="sel-field">
+            <option value="R">ℝ</option>
+            <option value="C">ℂ</option>
+          </select>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 3-패널 메인 -->
+    <div class="gr-layout">
+
+      <!-- 좌: Irrep 목록 + 지표표 -->
+      <aside class="gr-irrep-panel">
+        <div class="gr-panel-section">
+          <div class="gr-panel-title">기약표현 (Irrep)</div>
+          <div id="irrep-list" class="gr-irrep-list"></div>
+        </div>
+        <div class="gr-panel-section" style="flex:1">
+          <div class="gr-panel-title">지표표</div>
+          <div id="char-table" class="gr-char-table"></div>
+        </div>
+      </aside>
+
+      <!-- 중앙: 시각화 -->
+      <section class="gr-viz">
+        <div class="gr-viz-header">
+          <span id="viz-irrep-name" class="gr-viz-title">—</span>
+          <span id="viz-field-badge" class="gr-viz-field-badge"></span>
+          <span id="viz-dim" style="font-size:0.78rem;color:var(--text-muted)"></span>
+        </div>
+        <div class="gr-canvas-wrap">
+          <canvas id="main-canvas"></canvas>
+        </div>
+        <div class="gr-matrix-display">
+          <span class="gr-matrix-label" id="matrix-label">ρ(e) =</span>
+          <span class="gr-matrix-val" id="matrix-val">I</span>
+        </div>
+        <div id="mini-row" class="gr-mini-row"></div>
+      </section>
+
+      <!-- 우: 원소 구성기 -->
+      <aside class="gr-composer">
+        <div class="gr-panel-section">
+          <div class="gr-panel-title">생성원</div>
+          <div id="gen-buttons" class="gr-gen-buttons"></div>
+        </div>
+        <div class="gr-panel-section" style="flex:1">
+          <div class="gr-panel-title">구성</div>
+          <div id="composition-box" class="gr-composition-box">
+            <span style="color:var(--text-muted)">e</span>
+          </div>
+          <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted)">
+            정규형: <span id="normal-form" class="gr-element-badge">e</span>
+          </div>
+        </div>
+        <div class="gr-panel-section">
+          <div class="gr-composer-actions">
+            <button class="btn" id="btn-undo">← 지우기</button>
+            <button class="btn" id="btn-reset">초기화</button>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

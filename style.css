@@ -250,3 +250,272 @@ select:hover, select:focus { border-color: var(--accent); }
   height: 24px;
   background: var(--border);
 }
+
+/* ── 유한군 표현론 (group-rep) ── */
+.gr-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.gr-irrep-panel {
+  width: 22%;
+  min-width: 160px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.gr-panel-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gr-panel-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.gr-irrep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gr-irrep-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.gr-irrep-item:hover { background: var(--surface-hover); }
+
+.gr-irrep-item.active {
+  background: var(--tag-bg);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.gr-irrep-name {
+  flex: 1;
+  font-family: var(--font-mono);
+}
+
+.gr-irrep-dim {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* 지표표 (character table) */
+.gr-char-table {
+  display: grid;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  line-height: 1.8;
+  color: var(--text-muted);
+  overflow-x: auto;
+  gap: 0 8px;
+}
+
+.gr-char-table .ct-header { color: var(--accent); font-size: 0.68rem; }
+.gr-char-table .ct-name   { color: var(--text); }
+.gr-char-table .ct-val    { text-align: right; }
+
+/* ── 중앙 시각화 ── */
+.gr-viz {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.gr-viz-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.gr-viz-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--accent-hover);
+}
+
+.gr-viz-field-badge {
+  font-size: 0.72rem;
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+}
+
+.gr-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.gr-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.gr-matrix-display {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gr-matrix-label { color: var(--text-muted); }
+.gr-matrix-val   { color: var(--text); }
+
+/* 미니 irrep 비교 행 */
+.gr-mini-row {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.gr-mini-card {
+  flex-shrink: 0;
+  width: 88px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.gr-mini-card:hover  { border-color: var(--accent); }
+.gr-mini-card.active { border-color: var(--accent); background: var(--surface-hover); }
+
+.gr-mini-card canvas {
+  display: block;
+  width: 88px;
+  height: 52px;
+  background: var(--bg);
+}
+
+.gr-mini-label {
+  padding: 3px 6px;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 우측 원소 구성기 ── */
+.gr-composer {
+  width: 26%;
+  min-width: 180px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.gr-gen-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.gr-gen-btn {
+  background: var(--surface-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.gr-gen-btn:hover {
+  border-color: var(--accent);
+  background: var(--tag-bg);
+  color: var(--accent-hover);
+}
+
+.gr-composition-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-height: 42px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.gr-composition-box .op-dot {
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+.gr-element-badge {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--accent-hover);
+  background: var(--tag-bg);
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.gr-composer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 상단 군 선택 바 */
+.gr-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.gr-top-bar .ctrl-group { gap: 8px; }
+
