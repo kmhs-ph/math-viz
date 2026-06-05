@@ -274,22 +274,19 @@ export class Visualizer {
     // to screen
     const toSc = ([x, y]) => [cx + x * unit, cy - y * unit]
 
-    // 격자선
-    const RANGE = 4
-    for (let i = -RANGE; i <= RANGE; i++) {
-      ctx.beginPath()
-      const [x0, y0] = toSc([i * b1[0] + (-RANGE) * b2[0], i * b1[1] + (-RANGE) * b2[1]])
-      const [x1, y1] = toSc([i * b1[0] + RANGE * b2[0], i * b1[1] + RANGE * b2[1]])
-      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1)
-      ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.stroke()
+    // ── 고정 좌표축 (group action 없음) ──
+    const AX = 3.0
+    drawArrow(ctx, cx, cy, cx + AX * unit, cy,             C.vec1, 9)
+    drawArrow(ctx, cx, cy, cx,             cy - AX * unit, C.vec2, 9)
+    ctx.font = '12px var(--font-mono, monospace)'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = C.vec1; ctx.textAlign = 'left';   ctx.fillText('x', cx + AX * unit + 10, cy)
+    ctx.fillStyle = C.vec2; ctx.textAlign = 'center'; ctx.fillText('y', cx, cy - AX * unit - 14)
 
-      const [x2, y2] = toSc([(-RANGE) * b1[0] + i * b2[0], (-RANGE) * b1[1] + i * b2[1]])
-      const [x3, y3] = toSc([RANGE * b1[0] + i * b2[0], RANGE * b1[1] + i * b2[1]])
-      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x3, y3)
-      ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.stroke()
-    }
+    // 원점
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
 
-    // 방향 표식: 'F' 모양 (비대칭, 반사 여부를 즉시 알 수 있음)
+    // ── 사각형 (group action 적용) ──
     drawUnitSquare(ctx, cx, cy, b1, b2, unit, toSc)
 
     // O(-CS,-CS) = corners[0] 에서 만나는 축 방향 변
@@ -305,17 +302,6 @@ export class Visualizer {
       ctx.beginPath(); ctx.moveTo(ox2, oy2); ctx.lineTo(yx, yy)
       ctx.strokeStyle = C.vec2; ctx.stroke()
     }
-
-    // 기저벡터 화살표
-    const [b1x, b1y] = toSc(b1)
-    const [b2x, b2y] = toSc(b2)
-    drawArrow(ctx, cx, cy, b1x, b1y, C.vec1, 10)
-    drawArrow(ctx, cx, cy, b2x, b2y, C.vec2, 10)
-
-    // 레이블
-    ctx.font = '13px var(--font-mono, monospace)'; ctx.textAlign = 'center'
-    ctx.fillStyle = C.vec1; ctx.fillText('e₁', b1x + (b1x - cx) * 0.18, b1y + (b1y - cy) * 0.18)
-    ctx.fillStyle = C.vec2; ctx.fillText('e₂', b2x + (b2x - cx) * 0.18, b2y + (b2y - cy) * 0.18)
   }
 
   // ── nD 투영 ─────────────────────────────────────────────────────────────
