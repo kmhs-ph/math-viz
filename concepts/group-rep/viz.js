@@ -292,6 +292,20 @@ export class Visualizer {
     // 방향 표식: 'F' 모양 (비대칭, 반사 여부를 즉시 알 수 있음)
     drawUnitSquare(ctx, cx, cy, b1, b2, unit, toSc)
 
+    // O(-CS,-CS) = corners[0] 에서 만나는 축 방향 변
+    {
+      const CS = 0.9
+      const tw = ([u, v]) => [u * b1[0] + v * b2[0], u * b1[1] + v * b2[1]]
+      const [ox2, oy2] = toSc(tw([-CS, -CS]))
+      const [xx, xy]   = toSc(tw([ CS, -CS]))
+      const [yx, yy]   = toSc(tw([-CS,  CS]))
+      ctx.lineWidth = 2.5
+      ctx.beginPath(); ctx.moveTo(ox2, oy2); ctx.lineTo(xx, xy)
+      ctx.strokeStyle = C.vec1; ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(ox2, oy2); ctx.lineTo(yx, yy)
+      ctx.strokeStyle = C.vec2; ctx.stroke()
+    }
+
     // 기저벡터 화살표
     const [b1x, b1y] = toSc(b1)
     const [b2x, b2y] = toSc(b2)
@@ -436,6 +450,14 @@ export class Visualizer {
       ctx.fillStyle = 'rgba(91,141,238,0.12)'; ctx.fill()
       ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 1.2; ctx.stroke()
     })
+
+    // O(-CS,-CS,-CS) = VERTS[0] 에서 만나는 축 방향 변
+    // 0→1(+x), 0→3(+y), 0→4(+z)
+    for (const [vi, vj, ai] of [[0,1,0],[0,3,1],[0,4,2]]) {
+      ctx.beginPath()
+      ctx.moveTo(...sverts[vi]); ctx.lineTo(...sverts[vj])
+      ctx.strokeStyle = axCols[ai]; ctx.lineWidth = 2.5; ctx.stroke()
+    }
 
     ctx.fillStyle = C.text
     ctx.font = '11px var(--font-sans, sans-serif)'
