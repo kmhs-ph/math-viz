@@ -1,39 +1,39 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>유한군 표현론 — 수학 시각화</title>
+  <title>Finite Group Representations — Math Viz</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/group-rep-di5sgoWD.js"></script>
-  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-Cmy0LdWz.js">
+  <script type="module" crossorigin src="/math-viz/assets/group-rep-BPEkQk_C.js"></script>
+  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-DouD8Y_N.js">
   <link rel="modulepreload" crossorigin href="/math-viz/assets/canvas-utils-CVWB7avU.js">
-  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-ChWuZnFL.css">
+  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-BhnjmbvI.css">
 </head>
 <body>
   <div class="concept-page">
 
-    <!-- 상단 내비 + 군 선택 -->
+    <!-- nav + group selector -->
     <nav class="concept-nav">
       <a class="back-link" href="../../">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5"
                 stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        홈
+        Home
       </a>
       <span style="color:var(--border)">|</span>
-      <h1>유한군 표현론</h1>
+      <h1>Finite Group Representations</h1>
 
       <div class="gr-top-bar" style="border:none; padding:0; margin-left:auto;">
         <div class="ctrl-group">
-          <span class="ctrl-label">군</span>
+          <span class="ctrl-label">Group</span>
           <select id="sel-group"></select>
         </div>
         <div class="ctrl-group">
-          <span class="ctrl-label">체</span>
+          <span class="ctrl-label">Field</span>
           <select id="sel-field">
             <option value="R">ℝ</option>
             <option value="C">ℂ</option>
@@ -42,17 +42,17 @@
       </div>
     </nav>
 
-    <!-- 3-패널 메인 -->
+    <!-- 3-panel main -->
     <div class="gr-layout">
 
-      <!-- 좌: Irrep 목록 + 지표표 -->
+      <!-- left: irrep list + character table + matrix -->
       <aside class="gr-irrep-panel">
         <div class="gr-panel-section">
-          <div class="gr-panel-title">기약표현 (Irrep)</div>
+          <div class="gr-panel-title">Irreducible Reps</div>
           <div id="irrep-list" class="gr-irrep-list"></div>
         </div>
         <div class="gr-panel-section" style="flex:1">
-          <div class="gr-panel-title">지표표</div>
+          <div class="gr-panel-title">Character Table</div>
           <div id="char-table" class="gr-char-table"></div>
         </div>
         <div class="gr-panel-section">
@@ -61,7 +61,7 @@
         </div>
       </aside>
 
-      <!-- 중앙: 시각화 -->
+      <!-- center: visualization -->
       <section class="gr-viz">
         <div class="gr-viz-header">
           <span id="viz-irrep-name" class="gr-viz-title">—</span>
@@ -73,25 +73,25 @@
         </div>
       </section>
 
-      <!-- 우: 원소 구성기 -->
+      <!-- right: element composer -->
       <aside class="gr-composer">
         <div class="gr-panel-section">
-          <div class="gr-panel-title">생성원</div>
+          <div class="gr-panel-title">Generators</div>
           <div id="gen-buttons" class="gr-gen-buttons"></div>
         </div>
         <div class="gr-panel-section" style="flex:1">
-          <div class="gr-panel-title">구성</div>
+          <div class="gr-panel-title">Composition</div>
           <div id="composition-box" class="gr-composition-box">
             <span style="color:var(--text-muted)">e</span>
           </div>
           <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted)">
-            정규형: <span id="normal-form" class="gr-element-badge">e</span>
+            Normal form: <span id="normal-form" class="gr-element-badge">e</span>
           </div>
         </div>
         <div class="gr-panel-section">
           <div class="gr-composer-actions">
-            <button class="btn" id="btn-undo">← 지우기</button>
-            <button class="btn" id="btn-reset">초기화</button>
+            <button class="btn" id="btn-undo">← Undo</button>
+            <button class="btn" id="btn-reset">Reset</button>
           </div>
         </div>
       </aside>
