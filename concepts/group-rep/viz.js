@@ -101,6 +101,7 @@ export class Visualizer {
     this.projection = (dim >= 3) ? randomProjection(dim) : null
     const I = field === 'R' ? identityR(dim) : identityC(dim)
     this.currentMatrix = I
+    this.startMatrix  = I
     this.targetMatrix = I
     this.animStart = null
     this._resize()
@@ -108,6 +109,7 @@ export class Visualizer {
   }
 
   setTarget(M) {
+    this.startMatrix = this.currentMatrix  // 현재 상태에서 출발
     this.animStart = performance.now()
     this.targetMatrix = M
   }
@@ -142,9 +144,9 @@ export class Visualizer {
     const e = smoothstep(t)
 
     if (this.field === 'R') {
-      this.currentMatrix = lerpMat(identityR(this.dim), this.targetMatrix, e)
+      this.currentMatrix = lerpMat(this.startMatrix, this.targetMatrix, e)
     } else {
-      this.currentMatrix = lerpMatC(identityC(this.dim), this.targetMatrix, e)
+      this.currentMatrix = lerpMatC(this.startMatrix, this.targetMatrix, e)
     }
 
     if (t >= 1) this.animStart = null
