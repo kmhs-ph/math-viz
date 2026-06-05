@@ -1,6 +1,6 @@
 import { GROUPS } from './groups.js'
 import { getIrreps, characterTable } from './irreps.js'
-import { Visualizer, matrixToString, randomProjection } from './viz.js'
+import { Visualizer, randomProjection } from './viz.js'
 
 // ── 상태 ──────────────────────────────────────────────────────────────────
 const state = {
@@ -23,15 +23,14 @@ const charTable  = document.getElementById('char-table')
 const genButtons = document.getElementById('gen-buttons')
 const compBox    = document.getElementById('composition-box')
 const normalForm = document.getElementById('normal-form')
-const miniRow    = document.getElementById('mini-row')
-const mainCanvas = document.getElementById('main-canvas')
-const vizTitle   = document.getElementById('viz-irrep-name')
-const vizBadge   = document.getElementById('viz-field-badge')
-const vizDim     = document.getElementById('viz-dim')
-const matLabel   = document.getElementById('matrix-label')
-const matVal     = document.getElementById('matrix-val')
-const btnUndo    = document.getElementById('btn-undo')
-const btnReset   = document.getElementById('btn-reset')
+const mainCanvas  = document.getElementById('main-canvas')
+const vizTitle    = document.getElementById('viz-irrep-name')
+const vizBadge    = document.getElementById('viz-field-badge')
+const vizDim      = document.getElementById('viz-dim')
+const matLabel    = document.getElementById('matrix-label')
+const matDisplay  = document.getElementById('matrix-display')
+const btnUndo     = document.getElementById('btn-undo')
+const btnReset    = document.getElementById('btn-reset')
 
 // ── 군 선택 목록 초기화 ───────────────────────────────────────────────────
 const GROUP_ORDER = ['D3', 'D4', 'D5', 'D6', 'S3', 'S4', 'A3', 'A4', 'V4']
@@ -70,7 +69,6 @@ function init() {
   viz.init(state.field, irr.dim)
 
   updateVizHeader(irr)
-  renderMiniRow()
   updateMatrix()
 }
 
@@ -105,7 +103,6 @@ function selectIrrep(idx) {
   viz.init(state.field, irr.dim)
 
   updateVizHeader(irr)
-  renderMiniRow()
   updateMatrix()
 
   // 현재 원소 적용
@@ -113,9 +110,6 @@ function selectIrrep(idx) {
 
   // active 클래스 갱신
   document.querySelectorAll('.gr-irrep-item').forEach((el, i) => {
-    el.classList.toggle('active', i === idx)
-  })
-  document.querySelectorAll('.gr-mini-card').forEach((el, i) => {
     el.classList.toggle('active', i === idx)
   })
 }
@@ -220,7 +214,6 @@ function applyCurrentElement() {
   const M = irr.getMatrix(group, state.currentElement)
   viz.setTarget(M)
   updateMatrix()
-  updateMiniCards()
 }
 
 function updateMatrix() {
@@ -229,46 +222,60 @@ function updateMatrix() {
 
   const M = irr.getMatrix(group, state.currentElement)
   const elemLabel = group.elementLabel(state.currentElement)
-  matLabel.textContent = `ρ(${elemLabel}) =`
-  matVal.textContent = matrixToString(M, state.field)
+  matLabel.textContent = `ρ(${elemLabel})`
+
+  matDisplay.innerHTML = ''
+  const { dim } = irr
+
+  const fmtR = v => { const r = Math.round(v * 100) / 100; return r === 0 ? '0' : r.toString() }
+  const fmtC = z => {
+    if (typeof z === 'number') return fmtR(z)
+    const re = Math.round(z.re * 100) / 100
+    const im = Math.round(z.im * 100) / 100
+    if (im === 0) return fmtR(re)
+    if (re === 0) return im === 1 ? 'i' : im === -1 ? '-i' : `${im}i`
+    const s = im === 1 ? '+i' : im === -1 ? '-i' : im > 0 ? `+${im}i` : `${im}i`
+    return `${re}${s}`
+  }
+  const fmt = v => state.field === 'R' ? fmtR(v) : fmtC(v)
+
+  if (dim === 1) {
+    const span = document.createElement('span')
+    span.className = 'gr-matrix-scalar'
+    span.textContent = fmt(M[0][0])
+    matDisplay.appendChild(span)
+    return
+  }
+
+  const wrapper = document.createElement('div')
+  wrapper.className = 'gr-matrix-wrapper'
+
+  const bL = document.createElement('div')
+  bL.className = 'gr-matrix-bracket gr-matrix-bracket-l'
+
+  const entries = document.createElement('div')
+  entries.className = 'gr-matrix-entries'
+  entries.style.gridTemplateColumns = `repeat(${dim}, auto)`
+
+  for (let i = 0; i < dim; i++)
+    for (let j = 0; j < dim; j++) {
+      const cell = document.createElement('span')
+      cell.className = 'gr-matrix-cell'
+      cell.textContent = fmt(M[i][j])
+      entries.appendChild(cell)
+    }
+
+  const bR = document.createElement('div')
+  bR.className = 'gr-matrix-bracket gr-matrix-bracket-r'
+
+  wrapper.append(bL, entries, bR)
+  matDisplay.appendChild(wrapper)
 }
 
 function updateVizHeader(irr) {
   vizTitle.textContent = irr.name
   vizBadge.textContent = state.field === 'R' ? 'ℝ' : 'ℂ'
   vizDim.textContent = `dim = ${irr.dim}`
-}
-
-// ── 미니 비교 카드 ────────────────────────────────────────────────────────
-function renderMiniRow() {
-  miniRow.innerHTML = ''
-  irreps.forEach((irr, i) => {
-    const card = document.createElement('div')
-    card.className = 'gr-mini-card' + (i === state.irrepIdx ? ' active' : '')
-
-    const canvas = document.createElement('canvas')
-    canvas.width = 176; canvas.height = 104   // 2× for clarity
-
-    const label = document.createElement('div')
-    label.className = 'gr-mini-label'
-    label.textContent = `${irr.name} (${irr.dim}D)`
-
-    card.append(canvas, label)
-    card.addEventListener('click', () => selectIrrep(i))
-    miniRow.appendChild(card)
-  })
-  updateMiniCards()
-}
-
-function updateMiniCards() {
-  if (!state.currentElement) return
-  document.querySelectorAll('.gr-mini-card').forEach((card, i) => {
-    const canvas = card.querySelector('canvas')
-    if (!canvas) return
-    const irr = irreps[i]
-    const M = irr.getMatrix(group, state.currentElement)
-    viz.drawMini(canvas, M, state.field, irr.dim)
-  })
 }
 
 // ── 이벤트 바인딩 ─────────────────────────────────────────────────────────
@@ -289,7 +296,6 @@ selField.addEventListener('change', () => {
   viz = new Visualizer(mainCanvas)
   viz.init(state.field, irr.dim)
   updateVizHeader(irr)
-  renderMiniRow()
   applyCurrentElement()
 })
 
@@ -308,7 +314,6 @@ btnReset.addEventListener('click', () => {
   renderComposition()
   if (viz) viz.reset()
   updateMatrix()
-  updateMiniCards()
 })
 
 // [새 투영] 버튼 — dim ≥ 3 인 irrep에서 표시

@@ -104,6 +104,13 @@ export class Visualizer {
     this.startMatrix  = I
     this.targetMatrix = I
     this.animStart = null
+    if (dim === 3) {
+      this.orbitTheta = Math.PI / 4
+      this.orbitPhi   = Math.PI / 6
+      this._setupOrbit()
+    } else {
+      this._teardownOrbit()
+    }
     this._resize()
     this._startLoop()
   }
@@ -355,14 +362,15 @@ export class Visualizer {
     ctx.fillText(`${dim}D → 2D 투영`, W - 12, H - 10)
   }
 
-  // ── 3D 등각투영 (isometric) ──────────────────────────────────────────────
+  // ── 3D 궤도 카메라 ──────────────────────────────────────────────────────
 
   _draw3D() {
     const { ctx, W, H, field } = this
-    const ox = W / 2, oy = H / 2
-    const scale = Math.min(W, H) * 0.115
-    const SQ3_2 = Math.sqrt(3) / 2
+    const cx = W / 2, cy = H / 2
+    const scale = Math.min(W, H) * 0.22
     const M = this.currentMatrix
+    const theta = this.orbitTheta ?? Math.PI / 4
+    const phi   = this.orbitPhi   ?? Math.PI / 6
 
     const getM = (i, j) => field === 'R' ? M[i][j] : M[i][j].re
     const applyM = ([x, y, z]) => [
@@ -370,33 +378,38 @@ export class Visualizer {
       getM(1,0)*x + getM(1,1)*y + getM(1,2)*z,
       getM(2,0)*x + getM(2,1)*y + getM(2,2)*z,
     ]
-    // 등각투영: 관측 방향 [1,1,1], 깊이 = x+y+z (오름차순 = 뒤에서 앞으로)
-    const iso = ([x, y, z]) => [
-      ox + (x - z) * SQ3_2 * scale,
-      oy + ((x + z) * 0.5 - y) * scale,
+
+    const R = buildOrbitMatrix(theta, phi)
+    const applyR = ([x, y, z]) => [
+      R[0][0]*x + R[0][1]*y + R[0][2]*z,
+      R[1][0]*x + R[1][1]*y + R[1][2]*z,
+      R[2][0]*x + R[2][1]*y + R[2][2]*z,
     ]
-    const toScreen = v => iso(applyM(v))
-    const depthOf  = v => { const [tx, ty, tz] = applyM(v); return tx + ty + tz }
+    // 직교 투영: orbit 회전 후 x,y 성분만 사용
+    const proj   = v => { const [rx, ry] = applyR(v); return [cx + rx * scale, cy - ry * scale] }
+    const pdepth = v => applyR(v)[2]
 
-    // 격자 점
-    const RANGE = 2
-    const dots = []
-    for (let xi = -RANGE; xi <= RANGE; xi++)
-      for (let yi = -RANGE; yi <= RANGE; yi++)
-        for (let zi = -RANGE; zi <= RANGE; zi++)
-          dots.push({ v: [xi, yi, zi], d: depthOf([xi, yi, zi]) })
-    dots.sort((a, b) => a.d - b.d)
-
-    for (const { v } of dots) {
-      const [sx, sy] = toScreen(v)
-      const isOrigin = v[0] === 0 && v[1] === 0 && v[2] === 0
-      ctx.beginPath()
-      ctx.arc(sx, sy, isOrigin ? 3.5 : 1.8, 0, Math.PI * 2)
-      ctx.fillStyle = isOrigin ? C.accentHi : 'rgba(255,255,255,0.18)'
-      ctx.fill()
+    // ── 고정 좌표축 (group action 없음) ──────────────────────────────────
+    const AX_LEN  = 1.6
+    const axCols  = [C.vec1, C.vec2, '#5ce05c']
+    const axNames = ['x', 'y', 'z']
+    for (let i = 0; i < 3; i++) {
+      const tip = [0, 0, 0]; tip[i] = AX_LEN
+      const [sx, sy] = proj(tip)
+      drawArrow(ctx, cx, cy, sx, sy, axCols[i], 9)
+      const lblPt = [0, 0, 0]; lblPt[i] = AX_LEN + 0.22
+      const [lx, ly] = proj(lblPt)
+      ctx.fillStyle = axCols[i]
+      ctx.font = '12px var(--font-mono, monospace)'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(axNames[i], lx, ly)
     }
 
-    // 큐브
+    // 원점
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
+
+    // ── 큐브 (group action 적용 후 orbit 투영) ───────────────────────────
     const CS = 0.9
     const VERTS = [
       [-CS,-CS,-CS], [CS,-CS,-CS], [CS,CS,-CS], [-CS,CS,-CS],
@@ -407,34 +420,27 @@ export class Visualizer {
       [0,1,5,4], [2,3,7,6],
       [0,3,7,4], [1,2,6,5],
     ]
-    const tverts = VERTS.map(applyM)
-    const sverts = tverts.map(iso)
 
-    const facesWithDepth = FACES.map(idx => ({
+    const wverts = VERTS.map(applyM)
+    const sverts = wverts.map(proj)
+
+    FACES.map(idx => ({
       idx,
-      depth: idx.reduce((s, i) => s + tverts[i][0] + tverts[i][1] + tverts[i][2], 0) / idx.length,
+      depth: idx.reduce((s, i) => s + pdepth(wverts[i]), 0) / idx.length,
     })).sort((a, b) => a.depth - b.depth)
-
-    for (const { idx } of facesWithDepth) {
+    .forEach(({ idx }) => {
       const pts = idx.map(i => sverts[i])
-      ctx.beginPath()
-      ctx.moveTo(...pts[0])
+      ctx.beginPath(); ctx.moveTo(...pts[0])
       pts.slice(1).forEach(p => ctx.lineTo(...p))
       ctx.closePath()
-      ctx.fillStyle = 'rgba(91,141,238,0.1)'
-      ctx.fill()
-      ctx.strokeStyle = C.shapeLine
-      ctx.lineWidth = 1.2
-      ctx.stroke()
-    }
+      ctx.fillStyle = 'rgba(91,141,238,0.12)'; ctx.fill()
+      ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 1.2; ctx.stroke()
+    })
 
-    // 기저 축 화살표
-    const axColors = [C.vec1, C.vec2, '#5ce05c']
-    for (let i = 0; i < 3; i++) {
-      const ax = [0, 0, 0]; ax[i] = 1
-      const [sx, sy] = toScreen(ax)
-      drawArrow(ctx, ox, oy, sx, sy, axColors[i], 8)
-    }
+    ctx.fillStyle = C.text
+    ctx.font = '11px var(--font-sans, sans-serif)'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText('드래그로 회전', 12, H - 10)
   }
 
   // ── 미니 카드용 그리기 ───────────────────────────────────────────────────
@@ -512,6 +518,42 @@ export class Visualizer {
 
   destroy() {
     if (this._rafId) cancelAnimationFrame(this._rafId)
+    this._teardownOrbit()
+  }
+
+  _setupOrbit() {
+    this._teardownOrbit()
+    const canvas = this.canvas
+    canvas.style.cursor = 'grab'
+    let dragging = false, lastX = 0, lastY = 0
+    const onDown = e => {
+      if (e.button !== 0) return
+      dragging = true; lastX = e.clientX; lastY = e.clientY
+      canvas.style.cursor = 'grabbing'
+      e.preventDefault()
+    }
+    const onMove = e => {
+      if (!dragging) return
+      this.orbitTheta -= (e.clientX - lastX) * 0.008
+      this.orbitPhi   -= (e.clientY - lastY) * 0.008
+      this.orbitPhi = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.orbitPhi))
+      lastX = e.clientX; lastY = e.clientY
+    }
+    const onUp = () => { dragging = false; canvas.style.cursor = 'grab' }
+    canvas.addEventListener('mousedown', onDown)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    this._orbitHandlers = { onDown, onMove, onUp }
+  }
+
+  _teardownOrbit() {
+    if (!this._orbitHandlers) return
+    const { onDown, onMove, onUp } = this._orbitHandlers
+    this.canvas.removeEventListener('mousedown', onDown)
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    this.canvas.style.cursor = ''
+    this._orbitHandlers = null
   }
 }
 
@@ -580,4 +622,15 @@ function formatComplex(z) {
   if (re === 0) return im === 1 ? 'i' : im === -1 ? '-i' : `${im}i`
   const imStr = im === 1 ? '+i' : im === -1 ? '-i' : im > 0 ? `+${im}i` : `${im}i`
   return `${re}${imStr}`
+}
+
+// orbit 회전 행렬: R_x(phi) * R_y(theta)
+function buildOrbitMatrix(theta, phi) {
+  const cy = Math.cos(theta), sy = Math.sin(theta)
+  const cp = Math.cos(phi),   sp = Math.sin(phi)
+  return [
+    [ cy,       0,   sy      ],
+    [ sy * sp,  cp, -cy * sp ],
+    [-sy * cp,  sp,  cy * cp ],
+  ]
 }

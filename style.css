@@ -409,60 +409,50 @@ select:hover, select:focus { border-color: var(--accent); }
   height: 100%;
 }
 
-.gr-matrix-display {
+/* 행렬 박스 */
+.gr-matrix-wrapper {
+  display: inline-flex;
+  align-items: stretch;
+  margin-top: 4px;
+}
+
+.gr-matrix-bracket {
+  width: 5px;
   flex-shrink: 0;
-  padding: 10px 20px;
-  border-top: 1px solid var(--border);
+  border-top: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+}
+.gr-matrix-bracket-l {
+  border-left: 1.5px solid var(--text-muted);
+  margin-right: 7px;
+  border-radius: 2px 0 0 2px;
+}
+.gr-matrix-bracket-r {
+  border-right: 1.5px solid var(--text-muted);
+  margin-left: 7px;
+  border-radius: 0 2px 2px 0;
+}
+
+.gr-matrix-entries {
+  display: grid;
+  gap: 5px 10px;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  display: flex;
+  font-size: 0.74rem;
+  color: var(--text);
   align-items: center;
-  gap: 10px;
 }
 
-.gr-matrix-label { color: var(--text-muted); }
-.gr-matrix-val   { color: var(--text); }
-
-/* 미니 irrep 비교 행 */
-.gr-mini-row {
-  flex-shrink: 0;
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--border);
-  overflow-x: auto;
-}
-
-.gr-mini-card {
-  flex-shrink: 0;
-  width: 88px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.gr-mini-card:hover  { border-color: var(--accent); }
-.gr-mini-card.active { border-color: var(--accent); background: var(--surface-hover); }
-
-.gr-mini-card canvas {
-  display: block;
-  width: 88px;
-  height: 52px;
-  background: var(--bg);
-}
-
-.gr-mini-label {
-  padding: 3px 6px;
-  font-size: 0.68rem;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
+.gr-matrix-cell {
+  text-align: right;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.gr-matrix-scalar {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  padding: 4px 0;
 }
 
 /* ── 우측 원소 구성기 ── */
