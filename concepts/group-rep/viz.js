@@ -235,10 +235,10 @@ export class Visualizer {
     const px = cx + z.re * r, py = cy - z.im * r
     drawArrow(ctx, cx, cy, px, py, C.vec1, 10)
 
-    // 각도 호
-    const angle = Math.atan2(-z.im, z.re)
-    if (Math.abs(angle) > 0.02) {
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, -angle, angle > 0)
+    // 각도 호: theta = 캔버스 기준 화살표 각도 (y축 반전)
+    const theta = Math.atan2(-z.im, z.re)
+    if (Math.abs(theta) > 0.02) {
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, theta, theta < 0)
       ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.stroke()
     }
 
@@ -283,7 +283,7 @@ export class Visualizer {
     }
 
     // 방향 표식: 'F' 모양 (비대칭, 반사 여부를 즉시 알 수 있음)
-    drawFShape(ctx, cx, cy, b1, b2, unit, toSc)
+    drawUnitSquare(ctx, cx, cy, b1, b2, unit, toSc)
 
     // 기저벡터 화살표
     const [b1x, b1y] = toSc(b1)
@@ -340,7 +340,7 @@ export class Visualizer {
       ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.stroke()
     }
 
-    drawFShape(ctx, cx, cy, b1, b2, unit, toSc)
+    drawUnitSquare(ctx, cx, cy, b1, b2, unit, toSc)
 
     // 기저벡터들 화살표 (희미하게)
     const colors = [C.vec1, C.vec2, '#5ce05c', '#e0c05c', '#c05ce0']
@@ -535,27 +535,18 @@ function drawArrow(ctx, x1, y1, x2, y2, color, headLen) {
   ctx.fillStyle = color; ctx.fill()
 }
 
-// 'F' 모양 도형: 회전/반사를 직관적으로 보여주는 비대칭 도형
-function drawFShape(ctx, cx, cy, b1, b2, unit, toSc) {
-  // F 자 꼭짓점 (로컬 좌표, 단위 벡터 기준)
-  const pts = [
-    [0.1, 0.1], [0.1, 0.8],
-    [0.6, 0.8], [0.6, 0.65],
-    [0.2, 0.65], [0.2, 0.52],
-    [0.5, 0.52], [0.5, 0.38],
-    [0.2, 0.38], [0.2, 0.1],
-  ]
-
+// 단위 정사각형: 3D 큐브와 동일한 방식으로 기저 벡터 기준 ±CS 범위
+function drawUnitSquare(ctx, cx, cy, b1, b2, unit, toSc) {
+  const CS = 0.9
+  const corners = [[-CS, -CS], [CS, -CS], [CS, CS], [-CS, CS]]
   const toWorld = ([u, v]) => [
-    (u - 0.35) * b1[0] + (v - 0.45) * b2[0],
-    (u - 0.35) * b1[1] + (v - 0.45) * b2[1],
+    u * b1[0] + v * b2[0],
+    u * b1[1] + v * b2[1],
   ]
-
-  const screenPts = pts.map(p => toSc(toWorld(p)))
-
+  const screenPts = corners.map(p => toSc(toWorld(p)))
   ctx.beginPath()
   ctx.moveTo(...screenPts[0])
-  screenPts.forEach(p => ctx.lineTo(...p))
+  screenPts.slice(1).forEach(p => ctx.lineTo(...p))
   ctx.closePath()
   ctx.fillStyle = C.shape; ctx.fill()
   ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 1.5; ctx.stroke()
