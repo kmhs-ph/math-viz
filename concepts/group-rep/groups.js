@@ -344,36 +344,24 @@ for (let n = 3; n <= 6; n++) {
 // S_3, S_4
 for (const n of [3, 4]) {
   const elems = snElements(n)
-  const g = makeGroupFixed({
+  const gens = []
+  const genLbls = {}
+  for (let i = 0; i < n - 1; i++) {
+    const t = Array.from({ length: n }, (_, j) => j)
+    ;[t[i], t[i + 1]] = [t[i + 1], t[i]]
+    gens.push(t)
+    genLbls[snId(t)] = `(${i+1}${i+2})`
+  }
+  GROUPS[`S${n}`] = makeGroupFixed({
     key: `S${n}`,
     label: `S${n}`,
     elements: elems,
     multiplyFn: snMul,
     idFn: snId,
     labelFn: snLabel,
-    generators: (() => {
-      const gens = []
-      const genLbls = {}
-      for (let i = 0; i < n - 1; i++) {
-        const t = Array.from({ length: n }, (_, j) => j)
-        ;[t[i], t[i + 1]] = [t[i + 1], t[i]]
-        gens.push(t)
-        genLbls[snId(t)] = `(${i + 1}${i + 2})`
-      }
-      g._genLabels = genLbls
-      return gens
-    })(),
-    genLabels: {},
+    generators: gens,
+    genLabels: genLbls,
   })
-  // genLabels는 별도로 설정 (클로저 문제 우회)
-  const genLbls = {}
-  for (let i = 0; i < n - 1; i++) {
-    const t = Array.from({ length: n }, (_, j) => j)
-    ;[t[i], t[i + 1]] = [t[i + 1], t[i]]
-    genLbls[snId(t)] = `(${i+1}${i+2})`
-  }
-  g.genLabels = genLbls
-  GROUPS[g.key] = g
 }
 
 // A_3, A_4
