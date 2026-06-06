@@ -327,7 +327,8 @@ export class Visualizer {
 
     const dStart  = dim === 2 ? det2(this.startMatrix)  : det3(this.startMatrix)
     const dTarget = dim === 2 ? det2(M)                  : det3(M)
-    if (Math.abs(dStart - 1) > 0.01 || Math.abs(dTarget - 1) > 0.01) return
+    // 증분 변환 det = dStart·dTarget; ≈1 이면 SO(n) → 측지선, ≈-1 이면 반사 포함 → linear
+    if (Math.abs(dStart * dTarget - 1) > 0.01) return
 
     const fn = dim === 2
       ? so2Geodesic(this.startMatrix, M)
@@ -418,27 +419,13 @@ export class Visualizer {
     const applyM = ([x,y]) => [M[0][0]*x+M[0][1]*y, M[1][0]*x+M[1][1]*y]
     const toSc   = ([x,y]) => [cx + x*unit, cy - y*unit]
 
-    // 고정 참조 좌표선 (희미한 점선)
+    // 고정 좌표축
     const AX = 1.4
-    ctx.save()
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-    ctx.lineWidth = 1
-    ctx.setLineDash([4, 4])
-    ctx.beginPath(); ctx.moveTo(cx - AX*unit, cy); ctx.lineTo(cx + AX*unit, cy); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(cx, cy + AX*unit); ctx.lineTo(cx, cy - AX*unit); ctx.stroke()
-    ctx.restore()
-
-    // 변환된 기저벡터 (currentMatrix로 애니메이션됨)
-    const [e1x, e1y] = toSc(applyM([1, 0]))
-    const [e2x, e2y] = toSc(applyM([0, 1]))
-    drawArrow(ctx, cx, cy, e1x, e1y, C.vec1, 9)
-    drawArrow(ctx, cx, cy, e2x, e2y, C.vec2, 9)
+    drawArrow(ctx, cx, cy, cx+AX*unit, cy, C.vec1, 9)
+    drawArrow(ctx, cx, cy, cx, cy-AX*unit, C.vec2, 9)
     ctx.font = '12px var(--font-mono,monospace)'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = C.vec1
-    ctx.textAlign = e1x >= cx ? 'left' : 'right'
-    ctx.fillText('e₁', e1x + (e1x >= cx ? 8 : -8), e1y)
-    ctx.fillStyle = C.vec2; ctx.textAlign = 'center'
-    ctx.fillText('e₂', e2x, e2y + (e2y <= cy ? -14 : 14))
+    ctx.fillStyle = C.vec1; ctx.textAlign = 'left';   ctx.fillText('x', cx+AX*unit+10, cy)
+    ctx.fillStyle = C.vec2; ctx.textAlign = 'center'; ctx.fillText('y', cx, cy-AX*unit-14)
     ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2)
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
 
