@@ -157,7 +157,7 @@ function buildHull3D(pts) {
         }
       }
 
-  // Step 2: 공면 삼각형을 다각형으로 병합
+  // Step 2: 공면 삼각형을 다각형으로 병합 (삼각형도 그룹에 저장)
   const PREC = 100
   const planeMap = new Map()
   for (const face of faces) {
@@ -165,8 +165,10 @@ function buildHull3D(pts) {
     const d  = Math.round(dot3(nn, pts[face[0]]) * PREC) / PREC
     const nk = nn.map(v => Math.round(v * PREC) / PREC).join(',')
     const key = nk + ',' + d
-    if (!planeMap.has(key)) planeMap.set(key, { normal: nn, verts: new Set() })
-    face.forEach(i => planeMap.get(key).verts.add(i))
+    if (!planeMap.has(key)) planeMap.set(key, { normal: nn, verts: new Set(), tris: [] })
+    const entry = planeMap.get(key)
+    face.forEach(i => entry.verts.add(i))
+    entry.tris.push(face)
   }
 
   const polygons = []
@@ -184,22 +186,26 @@ function buildHull3D(pts) {
     polygons.push({ normal: nn, verts: vidxs })
   }
 
-  // Step 3: 실제 껍질 에지만 추출 (공면 삼각형 내부 에지 제거)
-  const facesByEdge = new Map()
-  for (const face of faces) {
-    const [a,b,c] = face
-    for (const [p,q] of [[a,b],[b,c],[a,c]]) {
-      const key = Math.min(p,q)+','+Math.max(p,q)
-      if (!facesByEdge.has(key)) facesByEdge.set(key, [])
-      facesByEdge.get(key).push(face)
+  // Step 3: 다각형 그룹 기준 에지-평면 인접 관계 구축
+  // (삼각형 기준으로 하면 정사각형·육각형 내부 에지가 adj.length>2 가 되어 잘못 처리됨)
+  const edgeToPlane = new Map()
+  for (const [planeKey, { normal: nn, tris }] of planeMap) {
+    for (const face of tris) {
+      const [a,b,c] = face
+      for (const [p,q] of [[a,b],[b,c],[a,c]]) {
+        const ek = Math.min(p,q)+','+Math.max(p,q)
+        if (!edgeToPlane.has(ek)) edgeToPlane.set(ek, new Map())
+        edgeToPlane.get(ek).set(planeKey, nn)  // 같은 planeKey는 덮어쓰기로 중복 제거
+      }
     }
   }
   const edges = []
-  for (const [key, adj] of facesByEdge) {
-    if (adj.length !== 2) { edges.push(key.split(',').map(Number)); continue }
-    const n1 = norm3(crossFace(pts[adj[0][0]], pts[adj[0][1]], pts[adj[0][2]]))
-    const n2 = norm3(crossFace(pts[adj[1][0]], pts[adj[1][1]], pts[adj[1][2]]))
-    if (Math.abs(dot3(n1, n2)) < 0.9999) edges.push(key.split(',').map(Number))
+  for (const [ek, groups] of edgeToPlane) {
+    const [a, b] = ek.split(',').map(Number)
+    const gs = [...groups.values()]
+    if (gs.length === 2) edges.push({ a, b, n1: gs[0], n2: gs[1] })
+    // gs.length === 1: 다각형 내부 에지 → 제외
+    // gs.length  >  2: 비다양체 → 제외
   }
 
   // Step 4: identity 꼭짓점 (e₁=(1,0,0) 에 가장 가까운 점)
@@ -278,8 +284,13 @@ export class Visualizer {
       this.canvas.addEventListener('click', this._clickHandler)
     }
 
-    if (dim === 3) this._setupOrbit()
-    else           this._teardownOrbit()
+    if (dim === 3) {
+      this.orbitTheta = Math.PI / 4
+      this.orbitPhi   = Math.PI / 6
+      this._setupOrbit()
+    } else {
+      this._teardownOrbit()
+    }
 
     this._resize()
     this._startLoop()
@@ -463,31 +474,42 @@ export class Visualizer {
     const wPts = this.orbitPts.map(applyM)
     const sPts = wPts.map(proj)
 
-    // 면 그리기 (뒷면 제거 + 깊이 정렬)
-    const visPolys = polygons
+    // 면 그리기 — 전체 투시(뒷면 포함), 깊이 정렬(뒤→앞)
+    const sortedPolys = polygons
       .map(poly => {
         const wn = applyM(poly.normal)
         const viewZ = applyR(wn)[2]
-        return { poly, viewZ, depth: poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length }
+        const depth = poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length
+        return { poly, viewZ, depth }
       })
-      .filter(({ viewZ }) => viewZ > 0)
       .sort((a,b) => a.depth - b.depth)
 
-    for (const { poly } of visPolys) {
+    for (const { poly, viewZ } of sortedPolys) {
       const fPts = poly.verts.map(i => sPts[i])
       ctx.beginPath(); ctx.moveTo(...fPts[0])
       fPts.slice(1).forEach(p => ctx.lineTo(...p))
       ctx.closePath()
-      ctx.fillStyle = C.shape; ctx.fill()
+      // 앞면은 조금 더 불투명, 뒷면은 더 연하게
+      ctx.fillStyle = viewZ > 0 ? 'rgba(91,141,238,0.18)' : 'rgba(91,141,238,0.07)'
+      ctx.fill()
     }
 
-    // 에지 그리기 (마킹 색 우선)
-    for (const [a, b] of edges) {
+    // 에지 그리기 — 모든 변 표시 (앞면/뒷면 구분 없이)
+    for (const { a, b, n1, n2 } of edges) {
+      const z1 = n1 ? applyR(applyM(n1))[2] : 1
+      const z2 = n2 ? applyR(applyM(n2))[2] : 1
+      const isFront = z1 > 0 || z2 > 0
       const key = a+','+b
       const mc = this.markedEdges.get(key)
       ctx.beginPath(); ctx.moveTo(...sPts[a]); ctx.lineTo(...sPts[b])
-      ctx.strokeStyle = mc ? PALETTE_COLORS[mc] : C.shapeLine
-      ctx.lineWidth   = mc ? 2.8 : 1.2; ctx.stroke()
+      if (mc) {
+        ctx.strokeStyle = PALETTE_COLORS[mc]
+        ctx.lineWidth = 2.8
+      } else {
+        ctx.strokeStyle = isFront ? C.shapeLine : 'rgba(91,141,238,0.28)'
+        ctx.lineWidth = isFront ? 1.2 : 0.7
+      }
+      ctx.stroke()
       this._screenEdges.push({ key, a: [...sPts[a]], b: [...sPts[b]] })
     }
 
