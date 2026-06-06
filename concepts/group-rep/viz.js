@@ -507,6 +507,23 @@ export class Visualizer {
       this._screenEdges.push({ key, a: [...sPts[a]], b: [...sPts[b]] })
     }
 
+    // +x, +y, +z 축 관통점 — 각 축 방향의 최전방 꼭짓점에 밝은 점 표시
+    const axDirs    = [[1,0,0], [0,1,0], [0,0,1]]
+    const axDotCols = [C.vec1,  C.vec2,  C.vec3]
+    for (let ai = 0; ai < 3; ai++) {
+      const dir = axDirs[ai]
+      let maxD = -Infinity, bestI = 0
+      wPts.forEach((p, i) => {
+        const d = p[0]*dir[0] + p[1]*dir[1] + p[2]*dir[2]
+        if (d > maxD) { maxD = d; bestI = i }
+      })
+      const [sx, sy] = sPts[bestI]
+      ctx.beginPath(); ctx.arc(sx, sy, 6.5, 0, Math.PI*2)
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill()
+      ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI*2)
+      ctx.fillStyle = axDotCols[ai]; ctx.fill()
+    }
+
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.fillText('Drag to rotate', 12, H - 10)
@@ -576,7 +593,7 @@ export class Visualizer {
       if (!mouseDown) return
       if (Math.hypot(e.clientX-startX, e.clientY-startY) > 3) isDrag = true
       if (isDrag) {
-        this.orbitTheta -= (e.clientX - lastX) * 0.008
+        this.orbitTheta += (e.clientX - lastX) * 0.008
         this.orbitPhi   -= (e.clientY - lastY) * 0.008
         this.orbitPhi = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, this.orbitPhi))
       }
