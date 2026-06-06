@@ -146,7 +146,7 @@ function buildHull3D(pts) {
         for (let l = 0; l < n; l++) {
           if (l===i||l===j||l===k) continue
           const s = dot3(norm, pts[l]) - d
-          if (Math.abs(s) < 1e-7) continue
+          if (Math.abs(s) < 1e-6) continue
           const sg = Math.sign(s)
           if (side === null) side = sg
           else if (sg !== side) { ok = false; break }
@@ -158,7 +158,7 @@ function buildHull3D(pts) {
       }
 
   // Step 2: 공면 삼각형을 다각형으로 병합
-  const PREC = 1000
+  const PREC = 100
   const planeMap = new Map()
   for (const face of faces) {
     const nn = norm3(crossFace(pts[face[0]], pts[face[1]], pts[face[2]]))
@@ -549,14 +549,15 @@ export class Visualizer {
     this._teardownOrbit()
     const canvas = this.canvas
     canvas.style.cursor = 'grab'
-    let startX = 0, startY = 0, lastX = 0, lastY = 0, isDrag = false
+    let startX = 0, startY = 0, lastX = 0, lastY = 0, isDrag = false, mouseDown = false
 
     const onDown = e => {
       if (e.button !== 0) return
       startX = lastX = e.clientX; startY = lastY = e.clientY
-      isDrag = false; canvas.style.cursor = 'grabbing'; e.preventDefault()
+      isDrag = false; mouseDown = true; canvas.style.cursor = 'grabbing'; e.preventDefault()
     }
     const onMove = e => {
+      if (!mouseDown) return
       if (Math.hypot(e.clientX-startX, e.clientY-startY) > 3) isDrag = true
       if (isDrag) {
         this.orbitTheta -= (e.clientX - lastX) * 0.008
@@ -566,8 +567,8 @@ export class Visualizer {
       lastX = e.clientX; lastY = e.clientY
     }
     const onUp = e => {
-      if (!isDrag) this._handleEdgeClick(e)
-      isDrag = false; canvas.style.cursor = 'grab'
+      if (mouseDown && !isDrag) this._handleEdgeClick(e)
+      isDrag = false; mouseDown = false; canvas.style.cursor = 'grab'
     }
 
     canvas.addEventListener('mousedown', onDown)
