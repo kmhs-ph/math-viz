@@ -221,6 +221,14 @@ function buildHull3D(pts) {
 
 // ── click 보조 함수 ──────────────────────────────────────────────────────────
 
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx-ax, dy = by-ay
+  const lenSq = dx*dx + dy*dy
+  if (lenSq < 1e-10) return Math.hypot(px-ax, py-ay)
+  const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq))
+  return Math.hypot(px-(ax+t*dx), py-(ay+t*dy))
+}
+
 function pointInPoly(px, py, pts) {
   const n = pts.length
   let sign = 0
@@ -257,9 +265,11 @@ export class Visualizer {
     this._hull3D    = null
     this.projection = null
 
-    this.markedFaces  = new Map()
-    this.paletteIdx   = 0        // 0 = erase, 1-5 = color
-    this._screenPolys = []
+    this.markedEdges  = new Map()   // 2D용
+    this.markedFaces  = new Map()   // 3D용
+    this.paletteIdx   = 0           // 0 = erase, 1-5 = color
+    this._screenEdges = []          // 2D 변 클릭 감지
+    this._screenPolys = []          // 3D 면 클릭 감지
 
     this._rafId          = null
     this._clickHandler   = null
@@ -270,7 +280,9 @@ export class Visualizer {
   init(dim, orbitPts) {
     this.dim      = dim
     this.orbitPts = orbitPts
+    this.markedEdges.clear()
     this.markedFaces.clear()
+    this._screenEdges = []
     this._screenPolys = []
 
     if (dim === 2 && orbitPts) this._poly2D  = buildPoly2D(orbitPts)
@@ -287,7 +299,7 @@ export class Visualizer {
       this._clickHandler = null
     }
     if (dim === 2) {
-      this._clickHandler = e => this._handleFaceClick(e)
+      this._clickHandler = e => this._handleEdgeClick(e)
       this.canvas.addEventListener('click', this._clickHandler)
     }
 
@@ -361,6 +373,7 @@ export class Visualizer {
   _draw() {
     const { ctx, W, H } = this
     ctx.clearRect(0, 0, W, H)
+    this._screenEdges = []
     this._screenPolys = []
 
     if      (this.dim === 1) this._draw1DR()
@@ -405,13 +418,27 @@ export class Visualizer {
     const applyM = ([x,y]) => [M[0][0]*x+M[0][1]*y, M[1][0]*x+M[1][1]*y]
     const toSc   = ([x,y]) => [cx + x*unit, cy - y*unit]
 
-    // 고정 좌표축
+    // 고정 참조 좌표선 (희미한 점선)
     const AX = 1.4
-    drawArrow(ctx, cx, cy, cx+AX*unit, cy, C.vec1, 9)
-    drawArrow(ctx, cx, cy, cx, cy-AX*unit, C.vec2, 9)
+    ctx.save()
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.beginPath(); ctx.moveTo(cx - AX*unit, cy); ctx.lineTo(cx + AX*unit, cy); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(cx, cy + AX*unit); ctx.lineTo(cx, cy - AX*unit); ctx.stroke()
+    ctx.restore()
+
+    // 변환된 기저벡터 (currentMatrix로 애니메이션됨)
+    const [e1x, e1y] = toSc(applyM([1, 0]))
+    const [e2x, e2y] = toSc(applyM([0, 1]))
+    drawArrow(ctx, cx, cy, e1x, e1y, C.vec1, 9)
+    drawArrow(ctx, cx, cy, e2x, e2y, C.vec2, 9)
     ctx.font = '12px var(--font-mono,monospace)'; ctx.textBaseline = 'middle'
-    ctx.fillStyle = C.vec1; ctx.textAlign = 'left';   ctx.fillText('x', cx+AX*unit+10, cy)
-    ctx.fillStyle = C.vec2; ctx.textAlign = 'center'; ctx.fillText('y', cx, cy-AX*unit-14)
+    ctx.fillStyle = C.vec1
+    ctx.textAlign = e1x >= cx ? 'left' : 'right'
+    ctx.fillText('e₁', e1x + (e1x >= cx ? 8 : -8), e1y)
+    ctx.fillStyle = C.vec2; ctx.textAlign = 'center'
+    ctx.fillText('e₂', e2x, e2y + (e2y <= cy ? -14 : 14))
     ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2)
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
 
@@ -420,19 +447,21 @@ export class Visualizer {
     const n = pts.length
     const sPts = pts.map(p => toSc(applyM(p)))
 
-    // 채워진 다각형 (면 마킹 색 적용)
-    const mc2 = this.markedFaces.get(0)
+    // 채워진 다각형
     ctx.beginPath(); ctx.moveTo(...sPts[0])
     for (let i = 1; i < n; i++) ctx.lineTo(...sPts[i])
     ctx.closePath()
-    ctx.fillStyle = mc2 ? PALETTE_FILLS[mc2] : C.shape; ctx.fill()
-    this._screenPolys.push({ idx: 0, pts: sPts })
+    ctx.fillStyle = C.shape; ctx.fill()
 
-    // 에지
+    // 에지 (변 마킹 색 적용)
     for (let i = 0; i < n; i++) {
       const j = (i+1) % n
+      const key = Math.min(i,j)+','+Math.max(i,j)
+      const mc = this.markedEdges.get(key)
       ctx.beginPath(); ctx.moveTo(...sPts[i]); ctx.lineTo(...sPts[j])
-      ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 1.5; ctx.stroke()
+      ctx.strokeStyle = mc ? PALETTE_COLORS[mc] : C.shapeLine
+      ctx.lineWidth   = mc ? 2.8 : 1.5; ctx.stroke()
+      this._screenEdges.push({ key, a: [...sPts[i]], b: [...sPts[j]] })
     }
   }
 
@@ -557,6 +586,20 @@ export class Visualizer {
         return
       }
     }
+  }
+
+  _handleEdgeClick(e) {
+    const rect  = this.canvas.getBoundingClientRect()
+    const px    = e.clientX - rect.left
+    const py    = e.clientY - rect.top
+    let nearest = null, minDist = 12
+    for (const edge of this._screenEdges) {
+      const d = distToSegment(px, py, edge.a[0], edge.a[1], edge.b[0], edge.b[1])
+      if (d < minDist) { minDist = d; nearest = edge }
+    }
+    if (!nearest) return
+    if (this.paletteIdx === 0) this.markedEdges.delete(nearest.key)
+    else                       this.markedEdges.set(nearest.key, this.paletteIdx)
   }
 
   // ── 궤도 카메라 ──────────────────────────────────────────────────────────
