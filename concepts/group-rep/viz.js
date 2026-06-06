@@ -13,6 +13,7 @@ const C = {
 }
 
 export const PALETTE_COLORS = [null, '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#c77dff']
+const PALETTE_FILLS  = [null, '#ff6b6b99', '#ffd93d99', '#6bcb7799', '#4d96ff99', '#c77dff99']
 
 // ── 수학 헬퍼 ────────────────────────────────────────────────────────────────
 
@@ -220,12 +221,18 @@ function buildHull3D(pts) {
 
 // ── click 보조 함수 ──────────────────────────────────────────────────────────
 
-function distToSegment(px, py, ax, ay, bx, by) {
-  const dx = bx-ax, dy = by-ay
-  const lenSq = dx*dx + dy*dy
-  if (lenSq < 1e-10) return Math.hypot(px-ax, py-ay)
-  const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq))
-  return Math.hypot(px-(ax+t*dx), py-(ay+t*dy))
+function pointInPoly(px, py, pts) {
+  const n = pts.length
+  let sign = 0
+  for (let i = 0; i < n; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[(i+1) % n]
+    const cross = (bx-ax)*(py-ay) - (by-ay)*(px-ax)
+    if (Math.abs(cross) < 0.5) continue
+    const s = cross > 0 ? 1 : -1
+    if (sign === 0) sign = s
+    else if (s !== sign) return false
+  }
+  return sign !== 0
 }
 
 // ── Visualizer ────────────────────────────────────────────────────────────────
@@ -250,9 +257,9 @@ export class Visualizer {
     this._hull3D    = null
     this.projection = null
 
-    this.markedEdges  = new Map()
+    this.markedFaces  = new Map()
     this.paletteIdx   = 0        // 0 = erase, 1-5 = color
-    this._screenEdges = []
+    this._screenPolys = []
 
     this._rafId          = null
     this._clickHandler   = null
@@ -263,8 +270,8 @@ export class Visualizer {
   init(dim, orbitPts) {
     this.dim      = dim
     this.orbitPts = orbitPts
-    this.markedEdges.clear()
-    this._screenEdges = []
+    this.markedFaces.clear()
+    this._screenPolys = []
 
     if (dim === 2 && orbitPts) this._poly2D  = buildPoly2D(orbitPts)
     if (dim === 3 && orbitPts) this._hull3D  = buildHull3D(orbitPts)
@@ -280,7 +287,7 @@ export class Visualizer {
       this._clickHandler = null
     }
     if (dim === 2) {
-      this._clickHandler = e => this._handleEdgeClick(e)
+      this._clickHandler = e => this._handleFaceClick(e)
       this.canvas.addEventListener('click', this._clickHandler)
     }
 
@@ -354,7 +361,7 @@ export class Visualizer {
   _draw() {
     const { ctx, W, H } = this
     ctx.clearRect(0, 0, W, H)
-    this._screenEdges = []
+    this._screenPolys = []
 
     if      (this.dim === 1) this._draw1DR()
     else if (this.dim === 2) this._drawPoly2D()
@@ -413,21 +420,19 @@ export class Visualizer {
     const n = pts.length
     const sPts = pts.map(p => toSc(applyM(p)))
 
-    // 채워진 다각형
+    // 채워진 다각형 (면 마킹 색 적용)
+    const mc2 = this.markedFaces.get(0)
     ctx.beginPath(); ctx.moveTo(...sPts[0])
     for (let i = 1; i < n; i++) ctx.lineTo(...sPts[i])
     ctx.closePath()
-    ctx.fillStyle = C.shape; ctx.fill()
+    ctx.fillStyle = mc2 ? PALETTE_FILLS[mc2] : C.shape; ctx.fill()
+    this._screenPolys.push({ idx: 0, pts: sPts })
 
-    // 에지 (마킹 색 우선)
+    // 에지
     for (let i = 0; i < n; i++) {
       const j = (i+1) % n
-      const key = Math.min(i,j)+','+Math.max(i,j)
-      const mc = this.markedEdges.get(key)
       ctx.beginPath(); ctx.moveTo(...sPts[i]); ctx.lineTo(...sPts[j])
-      ctx.strokeStyle = mc ? PALETTE_COLORS[mc] : C.shapeLine
-      ctx.lineWidth   = mc ? 2.8 : 1.5; ctx.stroke()
-      this._screenEdges.push({ key, a: [...sPts[i]], b: [...sPts[j]] })
+      ctx.strokeStyle = C.shapeLine; ctx.lineWidth = 1.5; ctx.stroke()
     }
   }
 
@@ -474,64 +479,31 @@ export class Visualizer {
     const wPts = this.orbitPts.map(applyM)
     const sPts = wPts.map(proj)
 
-    // 면 그리기 — 전체 투시, 깊이 정렬(뒤→앞), 균일 불투명도
+    // 면 그리기 — 전체 투시, 깊이 정렬(뒤→앞), 면 마킹 색 적용
     const sortedPolys = polygons
-      .map(poly => ({
-        poly,
+      .map((poly, idx) => ({
+        poly, idx,
         depth: poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length
       }))
       .sort((a,b) => a.depth - b.depth)
 
-    for (const { poly } of sortedPolys) {
+    for (const { poly, idx } of sortedPolys) {
       const fPts = poly.verts.map(i => sPts[i])
       ctx.beginPath(); ctx.moveTo(...fPts[0])
       fPts.slice(1).forEach(p => ctx.lineTo(...p))
       ctx.closePath()
-      ctx.fillStyle = C.shape; ctx.fill()
+      const mc = this.markedFaces.get(idx)
+      ctx.fillStyle = mc ? PALETTE_FILLS[mc] : C.shape; ctx.fill()
+      this._screenPolys.push({ idx, pts: fPts })
     }
 
     // 에지 그리기 — 모든 변 표시, 깊이로 굵기 구분
     for (const { a, b } of edges) {
       const depth = (pdepth(wPts[a]) + pdepth(wPts[b])) / 2
-      const key = a+','+b
-      const mc = this.markedEdges.get(key)
       ctx.beginPath(); ctx.moveTo(...sPts[a]); ctx.lineTo(...sPts[b])
-      if (mc) {
-        ctx.strokeStyle = PALETTE_COLORS[mc]
-        ctx.lineWidth = 2.8
-      } else {
-        ctx.strokeStyle = depth > 0 ? C.shapeLine : 'rgba(91,141,238,0.30)'
-        ctx.lineWidth = depth > 0 ? 1.4 : 0.7
-      }
+      ctx.strokeStyle = depth > 0 ? C.shapeLine : 'rgba(91,141,238,0.30)'
+      ctx.lineWidth   = depth > 0 ? 1.4 : 0.7
       ctx.stroke()
-      this._screenEdges.push({ key, a: [...sPts[a]], b: [...sPts[b]] })
-    }
-
-    // +x, +y, +z 축 관통점 — 원점 → 축 방향 반직선과 변환된 다면체 표면의 교점
-    const axDirs    = [[1,0,0], [0,1,0], [0,0,1]]
-    const axDotCols = [C.vec1,  C.vec2,  C.vec3]
-    for (let ai = 0; ai < 3; ai++) {
-      const d = axDirs[ai]
-      let tMin = Infinity
-      for (const poly of polygons) {
-        // 변환된 외법선 (면 무게중심 방향으로 부호 보정)
-        const wn0 = applyM(poly.normal)
-        const fc  = poly.verts
-          .reduce((a, i) => [a[0]+wPts[i][0], a[1]+wPts[i][1], a[2]+wPts[i][2]], [0,0,0])
-          .map(v => v / poly.verts.length)
-        const wn  = dot3(wn0, fc) >= 0 ? wn0 : [-wn0[0], -wn0[1], -wn0[2]]
-        const nd  = dot3(wn, d)
-        if (nd <= 1e-10) continue          // 평행 or 반대 방향 면
-        const t = dot3(wn, wPts[poly.verts[0]]) / nd
-        if (t > 1e-10 && t < tMin) tMin = t
-      }
-      if (!isFinite(tMin)) continue
-      const ip = [d[0]*tMin, d[1]*tMin, d[2]*tMin]
-      const [sx, sy] = proj(ip)
-      ctx.beginPath(); ctx.arc(sx, sy, 6.5, 0, Math.PI*2)
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill()
-      ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI*2)
-      ctx.fillStyle = axDotCols[ai]; ctx.fill()
     }
 
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
@@ -570,20 +542,21 @@ export class Visualizer {
     ctx.textAlign='right'; ctx.fillText(`${dim}D → 2D projection`, W-12, H-10)
   }
 
-  // ── 에지 클릭 감지 ────────────────────────────────────────────────────────
+  // ── 면 클릭 감지 ─────────────────────────────────────────────────────────
 
-  _handleEdgeClick(e) {
-    const rect  = this.canvas.getBoundingClientRect()
-    const px    = e.clientX - rect.left
-    const py    = e.clientY - rect.top
-    let nearest = null, minDist = 12
-    for (const edge of this._screenEdges) {
-      const d = distToSegment(px, py, edge.a[0], edge.a[1], edge.b[0], edge.b[1])
-      if (d < minDist) { minDist = d; nearest = edge }
+  _handleFaceClick(e) {
+    const rect = this.canvas.getBoundingClientRect()
+    const px   = e.clientX - rect.left
+    const py   = e.clientY - rect.top
+    // 앞면 우선(뒤→앞 순으로 저장됐으므로 역순 탐색)
+    for (let i = this._screenPolys.length - 1; i >= 0; i--) {
+      const { idx, pts } = this._screenPolys[i]
+      if (pointInPoly(px, py, pts)) {
+        if (this.paletteIdx === 0) this.markedFaces.delete(idx)
+        else                       this.markedFaces.set(idx, this.paletteIdx)
+        return
+      }
     }
-    if (!nearest) return
-    if (this.paletteIdx === 0) this.markedEdges.delete(nearest.key)
-    else                       this.markedEdges.set(nearest.key, this.paletteIdx)
   }
 
   // ── 궤도 카메라 ──────────────────────────────────────────────────────────
@@ -610,7 +583,7 @@ export class Visualizer {
       lastX = e.clientX; lastY = e.clientY
     }
     const onUp = e => {
-      if (mouseDown && !isDrag) this._handleEdgeClick(e)
+      if (mouseDown && !isDrag) this._handleFaceClick(e)
       isDrag = false; mouseDown = false; canvas.style.cursor = 'grab'
     }
 
