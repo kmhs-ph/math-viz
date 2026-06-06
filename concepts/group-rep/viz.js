@@ -285,7 +285,7 @@ export class Visualizer {
     }
 
     if (dim === 3) {
-      this.orbitTheta = Math.PI / 4
+      this.orbitTheta = -Math.PI / 4
       this.orbitPhi   = Math.PI / 6
       this._setupOrbit()
     } else {
