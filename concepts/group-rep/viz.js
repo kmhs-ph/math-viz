@@ -474,31 +474,25 @@ export class Visualizer {
     const wPts = this.orbitPts.map(applyM)
     const sPts = wPts.map(proj)
 
-    // 면 그리기 — 전체 투시(뒷면 포함), 깊이 정렬(뒤→앞)
+    // 면 그리기 — 전체 투시, 깊이 정렬(뒤→앞), 균일 불투명도
     const sortedPolys = polygons
-      .map(poly => {
-        const wn = applyM(poly.normal)
-        const viewZ = applyR(wn)[2]
-        const depth = poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length
-        return { poly, viewZ, depth }
-      })
+      .map(poly => ({
+        poly,
+        depth: poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length
+      }))
       .sort((a,b) => a.depth - b.depth)
 
-    for (const { poly, viewZ } of sortedPolys) {
+    for (const { poly } of sortedPolys) {
       const fPts = poly.verts.map(i => sPts[i])
       ctx.beginPath(); ctx.moveTo(...fPts[0])
       fPts.slice(1).forEach(p => ctx.lineTo(...p))
       ctx.closePath()
-      // 앞면은 조금 더 불투명, 뒷면은 더 연하게
-      ctx.fillStyle = viewZ > 0 ? 'rgba(91,141,238,0.18)' : 'rgba(91,141,238,0.07)'
-      ctx.fill()
+      ctx.fillStyle = C.shape; ctx.fill()
     }
 
-    // 에지 그리기 — 모든 변 표시 (앞면/뒷면 구분 없이)
-    for (const { a, b, n1, n2 } of edges) {
-      const z1 = n1 ? applyR(applyM(n1))[2] : 1
-      const z2 = n2 ? applyR(applyM(n2))[2] : 1
-      const isFront = z1 > 0 || z2 > 0
+    // 에지 그리기 — 모든 변 표시, 깊이로 굵기 구분
+    for (const { a, b } of edges) {
+      const depth = (pdepth(wPts[a]) + pdepth(wPts[b])) / 2
       const key = a+','+b
       const mc = this.markedEdges.get(key)
       ctx.beginPath(); ctx.moveTo(...sPts[a]); ctx.lineTo(...sPts[b])
@@ -506,8 +500,8 @@ export class Visualizer {
         ctx.strokeStyle = PALETTE_COLORS[mc]
         ctx.lineWidth = 2.8
       } else {
-        ctx.strokeStyle = isFront ? C.shapeLine : 'rgba(91,141,238,0.28)'
-        ctx.lineWidth = isFront ? 1.2 : 0.7
+        ctx.strokeStyle = depth > 0 ? C.shapeLine : 'rgba(91,141,238,0.30)'
+        ctx.lineWidth = depth > 0 ? 1.4 : 0.7
       }
       ctx.stroke()
       this._screenEdges.push({ key, a: [...sPts[a]], b: [...sPts[b]] })
