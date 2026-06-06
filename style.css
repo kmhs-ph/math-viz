@@ -383,6 +383,45 @@ select:hover, select:focus { border-color: var(--accent); }
   height: 100%;
 }
 
+/* 에지 팔레트 오버레이 */
+.edge-palette {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 10;
+}
+
+.palette-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: var(--pc, rgba(255,255,255,0.12));
+  transition: transform 0.12s, border-color 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  padding: 0;
+}
+
+.palette-btn:hover {
+  transform: scale(1.15);
+}
+
+.palette-btn.active {
+  border-color: rgba(255,255,255,0.85);
+}
+
+.palette-erase {
+  background: rgba(255,255,255,0.1);
+}
+
 /* 행렬 박스 */
 .gr-matrix-wrapper {
   display: inline-flex;

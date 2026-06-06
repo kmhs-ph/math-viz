@@ -28,6 +28,27 @@ const matLabel    = document.getElementById('matrix-label')
 const matDisplay  = document.getElementById('matrix-display')
 const btnUndo     = document.getElementById('btn-undo')
 const btnReset    = document.getElementById('btn-reset')
+const edgePalette = document.getElementById('edge-palette')
+const paletteBtns = edgePalette.querySelectorAll('.palette-btn')
+
+// ── 팔레트 초기화 ────────────────────────────────────────────────────────
+paletteBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const idx = parseInt(btn.dataset.idx)
+    if (viz) viz.paletteIdx = idx
+    paletteBtns.forEach(b => b.classList.toggle('active', b === btn))
+  })
+})
+
+function resetPalette() {
+  paletteBtns.forEach(b => b.classList.toggle('active', b.dataset.idx === '0'))
+  if (viz) viz.paletteIdx = 0
+}
+
+function setPaletteVisible(dim) {
+  edgePalette.style.display = dim >= 2 ? 'flex' : 'none'
+  resetPalette()
+}
 
 // ── 군 선택 목록 초기화 ───────────────────────────────────────────────────
 const GROUP_ORDER  = ['D3', 'D4', 'D5', 'D6', 'S3', 'S4', 'A3', 'A4', 'V4']
@@ -79,6 +100,7 @@ function init() {
   if (viz) viz.destroy()
   viz = new Visualizer(mainCanvas)
   viz.init(irr.dim, computeOrbit(irr, group))
+  setPaletteVisible(irr.dim)
 
   updateVizHeader(irr)
   updateMatrix()
@@ -112,6 +134,7 @@ function selectIrrep(idx) {
   if (viz) viz.destroy()
   viz = new Visualizer(mainCanvas)
   viz.init(irr.dim, computeOrbit(irr, group))
+  setPaletteVisible(irr.dim)
 
   updateVizHeader(irr)
   updateMatrix()
