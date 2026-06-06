@@ -507,17 +507,27 @@ export class Visualizer {
       this._screenEdges.push({ key, a: [...sPts[a]], b: [...sPts[b]] })
     }
 
-    // +x, +y, +z 축 관통점 — 각 축 방향의 최전방 꼭짓점에 밝은 점 표시
+    // +x, +y, +z 축 관통점 — 원점 → 축 방향 반직선과 변환된 다면체 표면의 교점
     const axDirs    = [[1,0,0], [0,1,0], [0,0,1]]
     const axDotCols = [C.vec1,  C.vec2,  C.vec3]
     for (let ai = 0; ai < 3; ai++) {
-      const dir = axDirs[ai]
-      let maxD = -Infinity, bestI = 0
-      wPts.forEach((p, i) => {
-        const d = p[0]*dir[0] + p[1]*dir[1] + p[2]*dir[2]
-        if (d > maxD) { maxD = d; bestI = i }
-      })
-      const [sx, sy] = sPts[bestI]
+      const d = axDirs[ai]
+      let tMin = Infinity
+      for (const poly of polygons) {
+        // 변환된 외법선 (면 무게중심 방향으로 부호 보정)
+        const wn0 = applyM(poly.normal)
+        const fc  = poly.verts
+          .reduce((a, i) => [a[0]+wPts[i][0], a[1]+wPts[i][1], a[2]+wPts[i][2]], [0,0,0])
+          .map(v => v / poly.verts.length)
+        const wn  = dot3(wn0, fc) >= 0 ? wn0 : [-wn0[0], -wn0[1], -wn0[2]]
+        const nd  = dot3(wn, d)
+        if (nd <= 1e-10) continue          // 평행 or 반대 방향 면
+        const t = dot3(wn, wPts[poly.verts[0]]) / nd
+        if (t > 1e-10 && t < tMin) tMin = t
+      }
+      if (!isFinite(tMin)) continue
+      const ip = [d[0]*tMin, d[1]*tMin, d[2]*tMin]
+      const [sx, sy] = proj(ip)
       ctx.beginPath(); ctx.arc(sx, sy, 6.5, 0, Math.PI*2)
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill()
       ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI*2)
@@ -594,7 +604,7 @@ export class Visualizer {
       if (Math.hypot(e.clientX-startX, e.clientY-startY) > 3) isDrag = true
       if (isDrag) {
         this.orbitTheta += (e.clientX - lastX) * 0.008
-        this.orbitPhi   -= (e.clientY - lastY) * 0.008
+        this.orbitPhi   += (e.clientY - lastY) * 0.008
         this.orbitPhi = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, this.orbitPhi))
       }
       lastX = e.clientX; lastY = e.clientY
