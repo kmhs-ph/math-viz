@@ -335,8 +335,8 @@ function makeGroupFixed({ key, label, elements, multiplyFn, idFn, labelFn, gener
 
 export const GROUPS = {}
 
-// D_n (n=3..6)
-for (let n = 3; n <= 6; n++) {
+// D_n (n=3..5)
+for (let n = 3; n <= 5; n++) {
   const g = makeDnFixed(n)
   GROUPS[g.key] = g
 }
@@ -364,12 +364,12 @@ for (const n of [3, 4]) {
   })
 }
 
-// A_3, A_4
-for (const n of [3, 4]) {
-  const elems = anElements(n)
+// A_4
+{
+  const elems = anElements(4)
   const g = makeGroupFixed({
-    key: `A${n}`,
-    label: `A${n}`,
+    key: 'A4',
+    label: 'A4',
     elements: elems,
     multiplyFn: snMul,
     idFn: snId,
@@ -377,34 +377,32 @@ for (const n of [3, 4]) {
     generators: [],
     genLabels: {},
   })
-  const genLbls = {}
-  if (n === 3) {
-    const r = elems.find(p => snLabel(p) === '(123)')
-    g.generators = [r]
-    genLbls[snId(r)] = '(123)'
-  } else {
-    const r1 = elems.find(p => snLabel(p) === '(123)')
-    const r2 = elems.find(p => snLabel(p) === '(124)')
-    if (r1 && r2) { g.generators = [r1, r2]; genLbls[snId(r1)] = '(123)'; genLbls[snId(r2)] = '(124)' }
+  const r1 = elems.find(p => snLabel(p) === '(123)')
+  const r2 = elems.find(p => snLabel(p) === '(124)')
+  if (r1 && r2) {
+    g.generators = [r1, r2]
+    g.genLabels = { [snId(r1)]: '(123)', [snId(r2)]: '(124)' }
   }
-  g.genLabels = genLbls
-  GROUPS[g.key] = g
+  GROUPS['A4'] = g
 }
 
-// V_4
+// A_5: ⟨r, c | r⁵ = c³ = (rc)² = 1⟩
+// r = (12345) in 1-indexed → 0-indexed: [1,2,3,4,0]
+// c = (142)  in 1-indexed → 0-indexed: [3,0,2,1,4]
 {
-  const elems = v4Elements()
-  const g = makeGroupFixed({
-    key: 'V4',
-    label: 'V₄',
+  const elems = anElements(5)
+  const r = elems.find(p => snId(p) === '1,2,3,4,0')
+  const c = elems.find(p => snId(p) === '3,0,2,1,4')
+  GROUPS['A5'] = makeGroupFixed({
+    key: 'A5',
+    label: 'A5',
     elements: elems,
-    multiplyFn: v4Mul,
-    idFn: v4Id,
-    labelFn: v4Label,
-    generators: [elems[1], elems[2]],
-    genLabels: { '10': 'a', '01': 'b' },
+    multiplyFn: snMul,
+    idFn: snId,
+    labelFn: snLabel,
+    generators: [r, c],
+    genLabels: { [snId(r)]: 'r', [snId(c)]: 'c' },
   })
-  GROUPS['V4'] = g
 }
 
 export { snSign }

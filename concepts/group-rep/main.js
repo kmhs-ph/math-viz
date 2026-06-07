@@ -51,12 +51,11 @@ function setPaletteVisible(dim) {
 }
 
 // ── 군 선택 목록 초기화 ───────────────────────────────────────────────────
-const GROUP_ORDER  = ['D3', 'D4', 'D5', 'D6', 'S3', 'S4', 'A3', 'A4', 'V4']
+const GROUP_ORDER  = ['D3', 'D4', 'D5', 'S3', 'S4', 'A4', 'A5']
 const GROUP_LABELS = {
-  D3: 'D₃', D4: 'D₄', D5: 'D₅', D6: 'D₆',
+  D3: 'D₃', D4: 'D₄', D5: 'D₅',
   S3: 'S₃', S4: 'S₄',
-  A3: 'A₃', A4: 'A₄',
-  V4: 'V₄',
+  A4: 'A₄', A5: 'A₅',
 }
 GROUP_ORDER.forEach(key => {
   if (!GROUPS[key]) return

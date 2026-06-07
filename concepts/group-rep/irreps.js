@@ -201,16 +201,6 @@ function dnIrreps(n) {
   return irreps
 }
 
-// ─── V_4 irrep ───────────────────────────────────────────────────────────
-
-function v4Irreps() {
-  const signs = [[1, 1], [1, -1], [-1, 1], [-1, -1]]
-  const names = ['trivial', 'χ_a', 'χ_b', 'χ_ab']
-  return signs.map(([ sa, sb ], i) => buildIrrep({
-    name: names[i], dim: 1, charLabel: `χ${i + 1}`,
-    genMatrices: { '10': [[sa]], '01': [[sb]] },
-  }))
-}
 
 // ─── S_3 irrep ───────────────────────────────────────────────────────────
 // Basis e1-e2, e2-e3 is NOT orthonormal → orthogonalize.
@@ -275,18 +265,66 @@ function s4Irreps() {
   ]
 }
 
-// ─── A_3 ≅ Z_3 irrep ──────────────────────────────────────────────────────
 
-function a3Irreps() {
-  const r123Id = '1,2,0'
+// ─── A_5 irrep ────────────────────────────────────────────────────────────
+// 표현식: ⟨r, c | r⁵ = c³ = (rc)² = 1⟩
+// r = (12345) 1-indexed → snId '1,2,3,4,0'
+// c = (142)  1-indexed → snId '3,0,2,1,4'
+
+function a5Irreps() {
+  const rId = '1,2,3,4,0'
+  const cId = '3,0,2,1,4'
+  const sq5 = Math.sqrt(5)
+
   return [
+    // 1D trivial
     buildIrrep({
       name: 'trivial', dim: 1, charLabel: 'χ₁',
-      genMatrices: { [r123Id]: [[1]] },
+      genMatrices: { [rId]: [[1]], [cId]: [[1]] },
     }),
+
+    // 3D icosahedral (α = +√5)
     buildIrrep({
-      name: 'rot', dim: 2, charLabel: 'χ₂ᴿ',
-      genMatrices: { [r123Id]: rot2(2 * Math.PI / 3) },
+      name: '3D', dim: 3, charLabel: 'χ₃',
+      genMatrices: {
+        [rId]: [
+          [(-1+sq5)/4, -(1+sq5)/4,  0.5],
+          [ (1+sq5)/4,  0.5,        (-1+sq5)/4],
+          [-0.5,        (-1+sq5)/4,  (1+sq5)/4],
+        ],
+        [cId]: [[0,0,1],[1,0,0],[0,1,0]],
+      },
+    }),
+
+    // 3D' Galois conjugate (α = −√5)
+    buildIrrep({
+      name: "3D'", dim: 3, charLabel: "χ₃'",
+      genMatrices: {
+        [rId]: [
+          [(-1-sq5)/4, -(1-sq5)/4,  0.5],
+          [ (1-sq5)/4,  0.5,        (-1-sq5)/4],
+          [-0.5,        (-1-sq5)/4,  (1-sq5)/4],
+        ],
+        [cId]: [[0,0,1],[1,0,0],[0,1,0]],
+      },
+    }),
+
+    // 4D: permutation rep on 5 letters, basis e₁-e₅, e₂-e₅, e₃-e₅, e₄-e₅
+    buildIrrep({
+      name: '4D', dim: 4, charLabel: 'χ₄',
+      genMatrices: {
+        [rId]: [[-1,-1,-1,-1],[1,0,0,0],[0,1,0,0],[0,0,1,0]],
+        [cId]: [[0,1,0,0],[0,0,0,1],[0,0,1,0],[1,0,0,0]],
+      },
+    }),
+
+    // 5D: augmented permutation rep (6 Sylow-5 subgroups) minus trivial
+    buildIrrep({
+      name: '5D', dim: 5, charLabel: 'χ₅',
+      genMatrices: {
+        [rId]: [[1,0,0,0,0],[0,0,0,1,0],[0,1,0,0,0],[-1,-1,-1,-1,-1],[0,0,1,0,0]],
+        [cId]: [[0,1,0,0,0],[0,0,0,1,0],[0,0,0,0,1],[1,0,0,0,0],[-1,-1,-1,-1,-1]],
+      },
     }),
   ]
 }
@@ -326,16 +364,14 @@ export function getIrreps(groupKey, group) {
   if (groupKey.startsWith('D')) {
     const n = parseInt(groupKey.slice(1))
     raw = dnIrreps(n)
-  } else if (groupKey === 'V4') {
-    raw = v4Irreps()
   } else if (groupKey === 'S3') {
     raw = s3Irreps()
   } else if (groupKey === 'S4') {
     raw = s4Irreps()
-  } else if (groupKey === 'A3') {
-    raw = a3Irreps()
   } else if (groupKey === 'A4') {
     raw = a4Irreps()
+  } else if (groupKey === 'A5') {
+    raw = a5Irreps()
   } else {
     return []
   }
