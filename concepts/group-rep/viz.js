@@ -685,7 +685,7 @@ export class Visualizer {
 
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText('4-simplex Schlegel · Drag to rotate · Click to mark cells', 12, H - 10)
+    ctx.fillText('4-simplex Schlegel · Drag to rotate · Click to mark edges', 12, H - 10)
   }
 
   // ── A5 5D: S² coloring by f_Q(u) = u^T Q u ──────────────────────────────
@@ -882,26 +882,17 @@ export class Visualizer {
     this._widgetCanvas = canvas
     if (!canvas) return
 
-    let startX = 0, startY = 0, lastX = 0, lastY = 0, isDrag = false, mouseDown = false
+    let mouseDown = false
     const onDown = e => {
       if (e.button !== 0) return
-      startX = lastX = e.clientX; startY = lastY = e.clientY
-      isDrag = false; mouseDown = true; e.preventDefault()
+      mouseDown = true
+      this._handleBasePickWidget(e)
+      e.preventDefault()
     }
     const onMove = e => {
-      if (!mouseDown) return
-      if (Math.hypot(e.clientX-startX, e.clientY-startY) > 3) isDrag = true
-      if (isDrag) {
-        this.orbitTheta += (e.clientX - lastX) * 0.008
-        this.orbitPhi   += (e.clientY - lastY) * 0.008
-        this.orbitPhi = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, this.orbitPhi))
-      }
-      lastX = e.clientX; lastY = e.clientY
+      if (mouseDown) this._handleBasePickWidget(e)
     }
-    const onUp = e => {
-      if (mouseDown && !isDrag) this._handleBasePickWidget(e)
-      mouseDown = false; isDrag = false
-    }
+    const onUp = () => { mouseDown = false }
     canvas.addEventListener('mousedown', onDown)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -985,14 +976,15 @@ export class Visualizer {
       }
     }
 
-    // Coordinate axes
+    // Coordinate axes — same color assignment as the main 3D viewer
+    // C.vec1='#e05c5c'(x), C.vec2='#5c9de0'(y), C.vec3='#5ce05c'(z)
     const AX = 1.22
-    const axRGB = [[255,107,107], [107,203,119], [77,150,255]]
+    const axRGB  = [[224,92,92], [92,157,224], [92,224,92]]
     const axNames = ['x','y','z']
     for (let i = 0; i < 3; i++) {
       const tip = [0,0,0]; tip[i] = AX
       const d = dep(tip)
-      const al = d > 0 ? 0.9 : 0.28
+      const al = d > 0 ? 0.92 : 0.28
       const col = `rgba(${axRGB[i].join(',')},${al})`
       drawArrow(ctx, cx, cy, ...toSc(tip), col, 6)
       const lp = [0,0,0]; lp[i] = AX + 0.22
