@@ -257,7 +257,7 @@ function renderBL() {
     ctx.save()
     ctx.fillStyle = '#8892aa'; ctx.font = '12px Inter, sans-serif'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('계수 막대를 클릭하세요', W/2, H/2)
+    ctx.fillText('Select Fourier coefficient', W/2, H/2)
     ctx.restore()
     return
   }

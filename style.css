@@ -5,10 +5,10 @@
 }
 
 :root {
-  --bg:                    #131315;
-  --surface:               #16161A;
-  --surface-container:     #201f21;
-  --surface-container-high:#2a2a2c;
+  --bg:                    #030309;
+  --surface:               #0a0a16;
+  --surface-container:     #111122;
+  --surface-container-high:#181830;
   --border:                rgba(255, 255, 255, 0.10);
   --text:                  #e5e1e4;
   --text-muted:            #94A3B8;
@@ -20,11 +20,15 @@
   --tag-text:              #b5c4ff;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
 }
 
 html, body {
   min-height: 100%;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  background-blend-mode: screen;
   color: var(--text);
   font-family: var(--font-sans);
   line-height: 1.6;
@@ -48,7 +52,6 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 0 20px rgba(76, 117, 242, 0.12);
   flex-shrink: 0;
 }
 
@@ -83,9 +86,9 @@ a { color: inherit; text-decoration: none; }
 /* ── 글래스 패널 유틸리티 ─────────────────────────────────────────────────── */
 
 .glass-panel {
-  background: rgba(22, 22, 26, 0.70);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
   border: 1px solid var(--border);
 }
 
@@ -123,34 +126,6 @@ a { color: inherit; text-decoration: none; }
   opacity: 0.5;
 }
 
-/* ── 파티클 + Glow ────────────────────────────────────────────────────────── */
-
-.hero-glow {
-  position: fixed;
-  pointer-events: none;
-  z-index: 0;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(76, 117, 242, 0.06) 0%, transparent 70%);
-  transform: translate(-50%, -50%);
-}
-
-.particle-container {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.particle {
-  position: absolute;
-  background: var(--accent);
-  border-radius: 50%;
-  filter: blur(1px);
-  opacity: 0.15;
-}
 
 /* ── Bento 그리드 ─────────────────────────────────────────────────────────── */
 
@@ -372,7 +347,14 @@ a { color: inherit; text-decoration: none; }
   flex-direction: column;
   height: calc(100dvh - 60px);
   overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background-color: #030309;
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  background-blend-mode: screen;
 }
+
 
 .concept-canvas-area {
   flex: 1;
@@ -508,10 +490,13 @@ select:hover, select:focus { border-color: var(--accent); }
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background: rgba(22, 22, 26, 0.70);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-right: 1px solid var(--border);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 12px 0 12px 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
 }
 
 .fourier-sidebar__header {
@@ -609,6 +594,7 @@ select:hover, select:focus { border-color: var(--accent); }
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  padding: 12px;
 }
 
 /* ── 푸리에 급수 (fourier) ── */
@@ -618,17 +604,22 @@ select:hover, select:focus { border-color: var(--accent); }
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
+  gap: 10px;
+  background: transparent;
   overflow: hidden;
   min-height: 0;
 }
 
 .fourier-panel {
-  background: radial-gradient(ellipse at center, #1a1a2e 0%, #131315 100%);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
   position: relative;
   overflow: hidden;
   min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
 }
 
 .fourier-panel canvas {
@@ -689,17 +680,23 @@ select:hover, select:focus { border-color: var(--accent); }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  padding: 12px;
+  gap: 12px;
 }
 
 .gr-irrep-panel {
   width: 22%;
   min-width: 160px;
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   flex-shrink: 0;
-  background: rgba(22, 22, 26, 0.60);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
 }
 
 .gr-panel-section {
@@ -777,6 +774,12 @@ select:hover, select:focus { border-color: var(--accent); }
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
 }
 
 .gr-viz-header {
@@ -809,7 +812,6 @@ select:hover, select:focus { border-color: var(--accent); }
   position: relative;
   overflow: hidden;
   min-height: 0;
-  background: radial-gradient(ellipse at 55% 45%, #1a1a2e 0%, #131315 100%);
 }
 
 .gr-canvas-wrap canvas {
@@ -958,12 +960,16 @@ select:hover, select:focus { border-color: var(--accent); }
 .gr-composer {
   width: 26%;
   min-width: 180px;
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   flex-shrink: 0;
-  background: rgba(22, 22, 26, 0.60);
+  background: rgba(12, 12, 22, 0.38);
+  backdrop-filter: blur(32px) brightness(1.12);
+  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
 }
 
 .gr-gen-buttons {
