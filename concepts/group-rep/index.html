@@ -7,10 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/group-rep-BtsGEVZq.js"></script>
-  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-Dim-N4KD.js">
+  <script type="module" crossorigin src="/math-viz/assets/group-rep-BT8tiyA1.js"></script>
+  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-BVBvRvsT.js">
   <link rel="modulepreload" crossorigin href="/math-viz/assets/canvas-utils-CVWB7avU.js">
-  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-DXYiMwHA.css">
+  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-War33FIH.css">
 </head>
 <body>
   <div class="concept-page">
@@ -60,10 +60,6 @@
           <span id="viz-irrep-name" class="gr-viz-title">—</span>
           <span id="viz-dim" style="font-size:0.78rem;color:var(--text-muted)"></span>
         </div>
-        <div id="preset-wrap" style="display:none; align-items:center; gap:6px; padding:4px 8px">
-          <label for="preset-select" style="font-size:11px;color:var(--text-muted)">polytope</label>
-          <select id="preset-select" class="gr-preset-select"></select>
-        </div>
         <div class="gr-canvas-wrap">
           <canvas id="main-canvas"></canvas>
           <div id="edge-palette" class="edge-palette" style="display:none">
@@ -74,6 +70,8 @@
             <button class="palette-btn" data-idx="4" style="--pc:#4d96ff" title="Blue"></button>
             <button class="palette-btn" data-idx="5" style="--pc:#c77dff" title="Purple"></button>
           </div>
+          <button id="info-btn" class="gr-info-btn" title="About this representation">ⓘ</button>
+          <div id="info-tooltip" class="gr-info-tooltip" style="display:none"></div>
         </div>
       </section>
 
