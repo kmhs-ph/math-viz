@@ -536,6 +536,17 @@ select:hover, select:focus { border-color: var(--accent); }
   gap: 8px;
 }
 
+.gr-preset-select {
+  font-size: 11px;
+  background: var(--surface-2, #1e1e2e);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.gr-preset-select:hover { border-color: rgba(255,255,255,0.25); }
+
 /* 상단 군 선택 바 */
 .gr-top-bar {
   display: flex;

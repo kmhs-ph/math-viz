@@ -355,6 +355,17 @@ export class Visualizer {
     this.markedFaces.clear()
   }
 
+  updateOrbit(pts) {
+    this.orbitPts = pts
+    if (!pts) return
+    if (this.dim === 2) this._poly2D = buildPoly2D(pts)
+    if (this.dim === 3) this._hull3D = buildHull3D(pts)
+    if (this.dim >= 4 && this.projection)
+      this._hullND = buildHull3D(pts.map(v => project3(this.projection, v)))
+    this.markedFaces.clear()
+    this.markedEdges.clear()
+  }
+
   _resize() {
     resizeCanvas(this.canvas)
     const r = this.canvas.parentElement.getBoundingClientRect()
