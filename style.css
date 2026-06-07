@@ -5,11 +5,11 @@
 }
 
 :root {
-  --bg:                    #030309;
-  --surface:               #0a0a16;
-  --surface-container:     #111122;
-  --surface-container-high:#181830;
-  --border:                rgba(255, 255, 255, 0.10);
+  --bg:                    #080809;
+  --surface:               #080809;
+  --surface-container:     #111112;
+  --surface-container-high:#161618;
+  --border:                rgba(255, 255, 255, 0.08);
   --text:                  #e5e1e4;
   --text-muted:            #94A3B8;
   --accent:                #b5c4ff;
@@ -25,10 +25,12 @@
 
 html, body {
   min-height: 100%;
-  background-color: var(--bg);
-  background-image: var(--noise);
-  background-size: 200px 200px;
-  background-blend-mode: screen;
+  background-color: #080809;
+  background-image:
+    radial-gradient(circle at 50% -20%, rgba(25, 32, 58, 0.45) 0%, transparent 70%),
+    radial-gradient(circle at 0% 100%, rgba(18, 18, 24, 0.50) 0%, transparent 55%),
+    linear-gradient(rgb(10, 10, 12) 0%, rgb(11, 11, 14) 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
   line-height: 1.6;
@@ -48,10 +50,10 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 16px;
   padding: 0 40px;
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
-  border-bottom: 1px solid var(--border);
+  background: rgba(10, 10, 12, 0.70);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
 }
 
@@ -86,9 +88,9 @@ a { color: inherit; text-decoration: none; }
 /* ── 글래스 패널 유틸리티 ─────────────────────────────────────────────────── */
 
 .glass-panel {
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
   border: 1px solid var(--border);
 }
 
@@ -145,7 +147,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .bento-card {
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
@@ -278,7 +280,7 @@ a { color: inherit; text-decoration: none; }
 /* ── Philosophy 섹션 ──────────────────────────────────────────────────────── */
 
 .home-philosophy {
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 48px;
   display: flex;
   align-items: center;
@@ -349,10 +351,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   position: relative;
   z-index: 1;
-  background-color: #030309;
-  background-image: var(--noise);
-  background-size: 200px 200px;
-  background-blend-mode: screen;
+  background: transparent;
 }
 
 
@@ -490,13 +489,13 @@ select:hover, select:focus { border-color: var(--accent); }
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  margin: 12px 0 12px 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  border-radius: 16px;
+  margin: 20px 0 20px 20px;
+  box-shadow: none;
 }
 
 .fourier-sidebar__header {
@@ -594,7 +593,7 @@ select:hover, select:focus { border-color: var(--accent); }
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
-  padding: 12px;
+  padding: 20px;
 }
 
 /* ── 푸리에 급수 (fourier) ── */
@@ -604,22 +603,22 @@ select:hover, select:focus { border-color: var(--accent); }
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 10px;
+  gap: 16px;
   background: transparent;
   overflow: hidden;
   min-height: 0;
 }
 
 .fourier-panel {
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
   position: relative;
   overflow: hidden;
   min-height: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  border-radius: 16px;
+  box-shadow: none;
 }
 
 .fourier-panel canvas {
@@ -680,23 +679,23 @@ select:hover, select:focus { border-color: var(--accent); }
   flex: 1;
   overflow: hidden;
   min-height: 0;
-  padding: 12px;
-  gap: 12px;
+  padding: 20px;
+  gap: 16px;
 }
 
 .gr-irrep-panel {
   width: 22%;
   min-width: 160px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   flex-shrink: 0;
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
+  box-shadow: none;
 }
 
 .gr-panel-section {
@@ -775,11 +774,11 @@ select:hover, select:focus { border-color: var(--accent); }
   overflow: hidden;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
+  border-radius: 16px;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
 }
 
 .gr-viz-header {
@@ -803,7 +802,7 @@ select:hover, select:focus { border-color: var(--accent); }
   background: var(--tag-bg);
   color: var(--tag-text);
   padding: 2px 7px;
-  border-radius: 12px;
+  border-radius: 16px;
   font-family: var(--font-mono);
 }
 
@@ -961,15 +960,15 @@ select:hover, select:focus { border-color: var(--accent); }
   width: 26%;
   min-width: 180px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   flex-shrink: 0;
-  background: rgba(12, 12, 22, 0.38);
-  backdrop-filter: blur(32px) brightness(1.12);
-  -webkit-backdrop-filter: blur(32px) brightness(1.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
+  box-shadow: none;
 }
 
 .gr-gen-buttons {
