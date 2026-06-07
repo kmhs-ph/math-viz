@@ -5,27 +5,27 @@ const WF = {
   square: {
     label: 'Square wave',
     b: n => n % 2 ? 4 / (n * Math.PI) : 0,
-    exact: θ => {
-      const t = ((θ % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
-      return t < Math.PI ? 1 : -1
+    exact: t => {
+      const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
+      return x < Math.PI ? 1 : -1
     },
   },
   sawtooth: {
     label: 'Sawtooth wave',
     b: n => 2 * Math.pow(-1, n+1) / (n * Math.PI),
-    exact: θ => {
-      const t = ((θ % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
-      return t < Math.PI ? t / Math.PI : (t - 2*Math.PI) / Math.PI
+    exact: t => {
+      const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
+      return x < Math.PI ? x / Math.PI : (x - 2*Math.PI) / Math.PI
     },
   },
   triangle: {
     label: 'Triangle wave',
     b: n => n % 2 ? 8 * Math.pow(-1, (n-1)/2) / (n*n*Math.PI*Math.PI) : 0,
-    exact: θ => {
-      const t = ((θ % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
-      if (t < Math.PI/2)   return 2*t/Math.PI
-      if (t < 3*Math.PI/2) return 2 - 2*t/Math.PI
-      return 2*t/Math.PI - 4
+    exact: t => {
+      const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
+      if (x < Math.PI/2)   return 2*x/Math.PI
+      if (x < 3*Math.PI/2) return 2 - 2*x/Math.PI
+      return 2*x/Math.PI - 4
     },
   },
 }
@@ -70,7 +70,6 @@ const anim = {
   t: 1, startTime: null, dur: 520,
 }
 
-// Returns interpolated K̂(n) during animation
 function knCoeff(n, N) {
   if (!anim.active) return KN[state.kn].coeff(n, state.param, N)
   const a = KN[anim.fromKn].coeff(n, anim.fromParam, N)
@@ -97,7 +96,6 @@ function triggerAnim(newKnKey) {
 }
 
 // ── Canvas refs ───────────────────────────────────────────────────────────────
-const CVTL = document.getElementById('canvas-tl')
 const CVR  = document.getElementById('canvas-r')
 const CVBL = document.getElementById('canvas-bl')
 
@@ -134,7 +132,7 @@ function hline(ctx, W, y) {
 function barStep(W, N) { return (W - PL - PR) / N }
 
 function drawBars(ctx, W, H, vals, posCol, yMin, yMax) {
-  const N = vals.length
+  const N    = vals.length
   const cH   = H - PT - PB
   const step = barStep(W, N)
   const barW = Math.max(1.5, step - 2)
@@ -163,28 +161,8 @@ function drawBars(ctx, W, H, vals, posCol, yMin, yMax) {
   ctx.restore()
 }
 
-// Smooth continuous K̂(n) curve (evaluated at fractional n)
-function drawKernelCurve(ctx, W, H, knKey, param, yMin, yMax, N, color, lw) {
-  const cH   = H - PT - PB
-  const step = barStep(W, N)
-  const yOf  = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
-  const SAMP = Math.max(60, N * 20)
-
-  ctx.save()
-  ctx.strokeStyle = color; ctx.lineWidth = lw
-  ctx.beginPath()
-  for (let i = 0; i <= SAMP; i++) {
-    const n = 1 + (N - 1) * i / SAMP
-    const v = KN[knKey].coeff(n, param, N)
-    const x = PL + (n - 0.5) * step
-    i === 0 ? ctx.moveTo(x, yOf(v)) : ctx.lineTo(x, yOf(v))
-  }
-  ctx.stroke()
-  ctx.restore()
-}
-
 function drawLineCurve(ctx, W, H, vals, yMin, yMax, col, lw) {
-  const cW = W - PL - PR, cH = H - PT - PB
+  const cW  = W - PL - PR, cH = H - PT - PB
   const yOf = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
   ctx.save()
   ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = lw
@@ -199,44 +177,46 @@ function drawLineCurve(ctx, W, H, vals, yMin, yMax, col, lw) {
 
 // ── Panel renderers ───────────────────────────────────────────────────────────
 
-function renderTL() {
-  const [ctx, W, H] = prep(CVTL)
-  ctx.clearRect(0, 0, W, H)
-  const N = state.N
-
-  // K̂(n) always in [0,1] → fixed y-scale
-  const yMin = -0.04, yMax = 1.08
-
-  const vals = Array.from({length: N}, (_, i) => knCoeff(i+1, N))
-  drawBars(ctx, W, H, vals, '#5ce05c', yMin, yMax)
-
-  // Smooth curve overlay for hovered (non-active) kernel
-  if (hoverKn && hoverKn !== state.kn) {
-    drawKernelCurve(ctx, W, H, hoverKn, kernelParamFor(hoverKn), yMin, yMax, N,
-      'rgba(255,255,255,0.28)', 2)
-  }
-
-  panelTitle(ctx, 'K̂(n)  — kernel coefficients')
-}
-
 function renderBL() {
   const [ctx, W, H] = prep(CVBL)
   ctx.clearRect(0, 0, W, H)
-  const N = state.N
-  const wf = WF[state.wf]
+  const N = state.N, wf = WF[state.wf]
 
-  // Fixed y-scale based on ORIGINAL f̂(n) so bars visibly "press down" on kernel change
+  // Fixed y-scale based on original f(n) so bars visibly press down on kernel change
   const origVals = Array.from({length: N}, (_, i) => wf.b(i+1))
   const vMax = Math.max(1e-9, ...origVals)
   const vMin = Math.min(0, ...origVals)
   const span = Math.max(vMax - vMin, 1e-9)
   const yMin = vMin - span * 0.05, yMax = vMax + span * 0.05
+  const cH   = H - PT - PB
+  const yOf  = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
 
   const vals = Array.from({length: N}, (_, i) => knCoeff(i+1, N) * wf.b(i+1))
   drawBars(ctx, W, H, vals, '#5b8dee', yMin, yMax)
 
+  // Smooth K_hover(n) preview curve — normalized so K=1 aligns with vMax bar top
+  if (hoverKn && hoverKn !== state.kn) {
+    const step  = barStep(W, N)
+    const SAMP  = Math.max(60, N * 20)
+    const param = kernelParamFor(hoverKn)
+    ctx.save()
+    ctx.strokeStyle = 'rgba(92,224,92,0.55)'
+    ctx.lineWidth   = 2.5
+    ctx.beginPath()
+    for (let i = 0; i <= SAMP; i++) {
+      const n    = 1 + (N - 1) * i / SAMP
+      const kval = KN[hoverKn].coeff(n, param, N)
+      const x    = PL + (n - 0.5) * step
+      const y    = yOf(kval * vMax)
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
   const isIdentity = state.kn === 'identity' && !anim.active
-  panelTitle(ctx, isIdentity ? 'f̂(n)  — Fourier coefficients' : 'K̂(n)·f̂(n)  — filtered coefficients')
+  const title = isIdentity ? 'f̂(n)  — Fourier coefficients' : 'K̂(n)·f̂(n)  — filtered coefficients'
+  panelTitle(ctx, title)
 }
 
 function renderR() {
@@ -247,9 +227,9 @@ function renderR() {
 
   const exactVals = Array.from({length: M+1}, (_, i) => wf.exact(2*Math.PI*i/M))
   const outVals   = Array.from({length: M+1}, (_, i) => {
-    const θ = 2*Math.PI*i/M
+    const th = 2*Math.PI*i/M
     let s = 0
-    for (let n = 1; n <= N; n++) s += knCoeff(n, N) * wf.b(n) * Math.sin(n * θ)
+    for (let n = 1; n <= N; n++) s += knCoeff(n, N) * wf.b(n) * Math.sin(n * th)
     return s
   })
 
@@ -267,14 +247,14 @@ function renderR() {
   ctx.save()
   ctx.font = '10px Inter, sans-serif'
   ctx.textBaseline = 'middle'; ctx.textAlign = 'right'
-  ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fillText('f(θ)',     W - PR - 58, PT/2)
-  ctx.fillStyle = '#ffd93d';               ctx.fillText('(K∗f)(θ)', W - PR,      PT/2)
+  ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fillText('f(θ)',      W - PR - 58, PT/2)
+  ctx.fillStyle = '#ffd93d';               ctx.fillText('(K∗f)(θ)', W - PR, PT/2)
   ctx.restore()
 
   panelTitle(ctx, '(K∗f)(θ)  — output,  θ ∈ [0, 2π]')
 }
 
-function render() { renderTL(); renderBL(); renderR() }
+function render() { renderBL(); renderR() }
 
 // ── rAF loop (animation only) ─────────────────────────────────────────────────
 function loop(ts) {
@@ -322,8 +302,8 @@ for (const [key, kn] of Object.entries(KN)) {
     `<span class="fkb-name">${kn.label}</span>` +
     `<span class="fkb-formula">${kn.formula}</span>`
 
-  btn.addEventListener('mouseenter', () => { hoverKn = key;  renderTL() })
-  btn.addEventListener('mouseleave', () => { hoverKn = null; renderTL() })
+  btn.addEventListener('mouseenter', () => { hoverKn = key;  renderBL() })
+  btn.addEventListener('mouseleave', () => { hoverKn = null; renderBL() })
   btn.addEventListener('click', () => {
     if (key === state.kn && !anim.active) return
     triggerAnim(key)
