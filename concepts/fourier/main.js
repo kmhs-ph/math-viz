@@ -1,9 +1,9 @@
 import { createSlider, createSelect, addDivider } from '../../shared/controls.js'
 
-// ── Waveforms ─────────────────────────────────────────────────────────────────
 const WF = {
   square: {
     label: 'Square wave',
+    a: _n => 0,
     b: n => n % 2 ? 4 / (n * Math.PI) : 0,
     exact: t => {
       const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
@@ -12,6 +12,7 @@ const WF = {
   },
   sawtooth: {
     label: 'Sawtooth wave',
+    a: _n => 0,
     b: n => 2 * Math.pow(-1, n+1) / (n * Math.PI),
     exact: t => {
       const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
@@ -20,6 +21,7 @@ const WF = {
   },
   triangle: {
     label: 'Triangle wave',
+    a: _n => 0,
     b: n => n % 2 ? 8 * Math.pow(-1, (n-1)/2) / (n*n*Math.PI*Math.PI) : 0,
     exact: t => {
       const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
@@ -28,9 +30,14 @@ const WF = {
       return 2*x/Math.PI - 4
     },
   },
+  dirac: {
+    label: 'Dirac delta',
+    a: _n => 0,
+    b: _n => 2 / Math.PI,
+    exact: null,
+  },
 }
 
-// ── Kernels ───────────────────────────────────────────────────────────────────
 const KN = {
   identity: {
     label: 'Identity',
@@ -59,10 +66,37 @@ const KN = {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const state = { wf: 'square', kn: 'identity', N: 20, param: 1 }
+const state = {
+  wf: 'square', kn: 'identity', N: 20, param: 1,
+  a: [],     // cosine coefficients (user-editable)
+  b: [],     // sine coefficients (user-editable)
+  aBase: [], // preset values used for stable y-scale
+  bBase: [],
+}
+
+function resetCoeffs() {
+  const wf = WF[state.wf], N = state.N
+  state.aBase = Array.from({length: N}, (_, i) => wf.a(i+1))
+  state.bBase = Array.from({length: N}, (_, i) => wf.b(i+1))
+  state.a = [...state.aBase]
+  state.b = [...state.bBase]
+}
+
+function resizeCoeffs(oldN) {
+  const wf = WF[state.wf], N = state.N
+  if (N > oldN) {
+    for (let n = oldN + 1; n <= N; n++) {
+      state.aBase.push(wf.a(n)); state.a.push(wf.a(n))
+      state.bBase.push(wf.b(n)); state.b.push(wf.b(n))
+    }
+  } else {
+    state.aBase.length = N; state.a.length = N
+    state.bBase.length = N; state.b.length = N
+  }
+}
+
 let hoverKn = null
 
-// ── Animation (kernel transition) ─────────────────────────────────────────────
 const anim = {
   active: false,
   fromKn: 'identity', fromParam: 1,
@@ -90,18 +124,16 @@ function triggerAnim(newKnKey) {
   if (p) state.param = p.def
   anim.toKn    = state.kn
   anim.toParam = state.param
-  anim.t = 0
-  anim.startTime = null
-  anim.active = true
+  anim.t = 0; anim.startTime = null; anim.active = true
 }
 
-// ── Canvas refs ───────────────────────────────────────────────────────────────
+// ── Canvas ────────────────────────────────────────────────────────────────────
 const CVR  = document.getElementById('canvas-r')
 const CVBL = document.getElementById('canvas-bl')
 
 function prep(cv) {
   const dpr = window.devicePixelRatio || 1
-  const r   = cv.parentElement.getBoundingClientRect()
+  const r = cv.parentElement.getBoundingClientRect()
   const W = r.width, H = r.height
   if (cv.width !== Math.round(W*dpr) || cv.height !== Math.round(H*dpr)) {
     cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr)
@@ -111,14 +143,65 @@ function prep(cv) {
   return [cv.getContext('2d'), W, H]
 }
 
-// ── Drawing primitives ────────────────────────────────────────────────────────
-const PL = 10, PR = 10, PT = 30, PB = 22
+const PL = 10, PR = 10
 
+// ── Drag state & layout ───────────────────────────────────────────────────────
+let drag = null  // { zone, n, yMin, yMax, barTop, barH }
+const blLayout = { a: {}, b: {} }
+
+function hitBL(e) {
+  const rect = CVBL.getBoundingClientRect()
+  const cx = e.clientX - rect.left
+  const cy = e.clientY - rect.top
+  for (const zone of ['a', 'b']) {
+    const z = blLayout[zone]
+    if (!z.barH) continue
+    if (cy < z.barTop - 6 || cy > z.barTop + z.barH + 6) continue
+    const step = (z.W - PL - PR) / z.N
+    const n = Math.floor((cx - PL) / step) + 1
+    if (n >= 1 && n <= z.N) return { zone, n, z }
+  }
+  return null
+}
+
+CVBL.addEventListener('mousedown', e => {
+  const hit = hitBL(e)
+  if (!hit) return
+  const { zone, n, z } = hit
+  drag = { zone, n, yMin: z.yMin, yMax: z.yMax, barTop: z.barTop, barH: z.barH }
+  anim.active = false
+  CVBL.style.cursor = 'ns-resize'
+  applyDrag(e)
+  e.preventDefault()
+})
+
+window.addEventListener('mousemove', e => {
+  if (drag) { applyDrag(e); return }
+  const hit = hitBL(e)
+  CVBL.style.cursor = hit ? 'ns-resize' : 'default'
+})
+
+window.addEventListener('mouseup', () => { drag = null })
+
+CVBL.addEventListener('mouseleave', () => { if (!drag) CVBL.style.cursor = 'default' })
+
+function applyDrag(e) {
+  if (!drag) return
+  const rect = CVBL.getBoundingClientRect()
+  const cy = e.clientY - rect.top
+  const { zone, n, yMin, yMax, barTop, barH } = drag
+  const val = yMin + (1 - (cy - barTop) / barH) * (yMax - yMin)
+  if (zone === 'a') state.a[n-1] = val
+  else              state.b[n-1] = val
+  render()
+}
+
+// ── Drawing helpers ───────────────────────────────────────────────────────────
 function panelTitle(ctx, text) {
   ctx.save()
   ctx.fillStyle = '#8892aa'; ctx.font = '11px Inter, sans-serif'
   ctx.textBaseline = 'middle'
-  ctx.fillText(text, PL, PT / 2)
+  ctx.fillText(text, PL, 15)
   ctx.restore()
 }
 
@@ -129,40 +212,9 @@ function hline(ctx, W, y) {
   ctx.restore()
 }
 
-function barStep(W, N) { return (W - PL - PR) / N }
-
-function drawBars(ctx, W, H, vals, posCol, yMin, yMax) {
-  const N    = vals.length
-  const cH   = H - PT - PB
-  const step = barStep(W, N)
-  const barW = Math.max(1.5, step - 2)
-  const yOf  = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
-  const y0   = yOf(0)
-
-  ctx.save()
-  for (let i = 0; i < N; i++) {
-    const v  = vals[i]
-    const bx = PL + (i + 0.5) * step - barW / 2
-    ctx.globalAlpha = 0.85
-    ctx.fillStyle   = v >= 0 ? posCol : '#e05c5c'
-    ctx.fillRect(bx, Math.min(yOf(v), y0), barW, Math.abs(yOf(v) - y0))
-  }
-  ctx.globalAlpha = 1
-  ctx.restore()
-
-  hline(ctx, W, y0)
-
-  ctx.save()
-  ctx.fillStyle = '#8892aa'; ctx.font = '9px "JetBrains Mono",monospace'
-  ctx.textBaseline = 'top'; ctx.textAlign = 'center'
-  for (const n of [...new Set([1, Math.ceil(N/2), N])]) {
-    ctx.fillText(n, PL + (n - 0.5) * step, H - PB + 3)
-  }
-  ctx.restore()
-}
-
 function drawLineCurve(ctx, W, H, vals, yMin, yMax, col, lw) {
-  const cW  = W - PL - PR, cH = H - PT - PB
+  const PT = 30, PB = 22
+  const cW = W - PL - PR, cH = H - PT - PB
   const yOf = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
   ctx.save()
   ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = lw
@@ -170,53 +222,109 @@ function drawLineCurve(ctx, W, H, vals, yMin, yMax, col, lw) {
     const x = PL + (i / (vals.length - 1)) * cW
     i === 0 ? ctx.moveTo(x, yOf(v)) : ctx.lineTo(x, yOf(v))
   })
-  ctx.stroke()
-  ctx.restore()
+  ctx.stroke(); ctx.restore()
   return yOf
 }
 
-// ── Panel renderers ───────────────────────────────────────────────────────────
+// ── Zone renderer (shared for a-zone and b-zone) ──────────────────────────────
+function drawZone(ctx, W, zTop, zH, vals, baseMax, col, label, zoneName) {
+  const PT_z = 18, PB_z = 20
+  const barTop = zTop + PT_z
+  const barH   = zH - PT_z - PB_z
+  const N = vals.length
 
+  // Stable y-scale: based on preset baseMax, with 2x headroom for dragging
+  const yMax =  baseMax * 2
+  const yMin = -baseMax * 2
+  const yOf  = v => barTop + (1 - (v - yMin) / (yMax - yMin)) * barH
+  const y0   = yOf(0)
+
+  // Save layout for drag hit-test
+  blLayout[zoneName] = { zTop, zH, barTop, barH, yMin, yMax, N, W }
+
+  const step = (W - PL - PR) / N
+  const barW = Math.max(1.5, step - 2)
+
+  // Bars
+  ctx.save()
+  for (let i = 0; i < N; i++) {
+    const v  = vals[i]
+    const bx = PL + (i + 0.5) * step - barW / 2
+    ctx.globalAlpha = 0.85
+    ctx.fillStyle   = v >= 0 ? col : '#e05c5c'
+    ctx.fillRect(bx, Math.min(yOf(v), y0), barW, Math.abs(yOf(v) - y0))
+  }
+  ctx.globalAlpha = 1
+  ctx.restore()
+
+  // Zero line
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,255,255,0.13)'; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(PL, y0); ctx.lineTo(W - PR, y0); ctx.stroke()
+  ctx.restore()
+
+  // Zone label
+  ctx.save()
+  ctx.fillStyle = '#8892aa'; ctx.font = '10px Inter, sans-serif'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, PL, zTop + PT_z / 2)
+  ctx.restore()
+
+  // n-axis ticks
+  ctx.save()
+  ctx.fillStyle = '#8892aa'; ctx.font = '9px "JetBrains Mono",monospace'
+  ctx.textBaseline = 'top'; ctx.textAlign = 'center'
+  for (const n of [...new Set([1, Math.ceil(N/2), N])]) {
+    ctx.fillText(n, PL + (n - 0.5) * step, barTop + barH + 3)
+  }
+  ctx.restore()
+
+  // K̂ hover preview — smooth curve showing where bars WOULD land after kernel
+  if (hoverKn && hoverKn !== state.kn) {
+    const anyNonZero = vals.some(v => Math.abs(v) > 1e-9)
+    if (anyNonZero) {
+      const SAMP = Math.max(80, N * 20)
+      const param = kernelParamFor(hoverKn)
+      ctx.save()
+      ctx.strokeStyle = 'rgba(92,224,92,0.55)'; ctx.lineWidth = 2.5
+      ctx.beginPath()
+      for (let i = 0; i <= SAMP; i++) {
+        const n  = 1 + (N - 1) * i / SAMP
+        const n0 = Math.max(0, Math.min(N-1, Math.floor(n) - 1))
+        const n1 = Math.max(0, Math.min(N-1, Math.ceil(n)  - 1))
+        const t  = n - Math.floor(n)
+        const ref  = (1 - t) * vals[n0] + t * vals[n1]
+        const kval = KN[hoverKn].coeff(n, param, N)
+        const x = PL + (n - 0.5) * step
+        const y = yOf(kval * ref)
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.stroke(); ctx.restore()
+    }
+  }
+}
+
+// ── Panel renderers ───────────────────────────────────────────────────────────
 function renderBL() {
   const [ctx, W, H] = prep(CVBL)
   ctx.clearRect(0, 0, W, H)
-  const N = state.N, wf = WF[state.wf]
 
-  // Fixed y-scale based on original f(n) so bars visibly press down on kernel change
-  const origVals = Array.from({length: N}, (_, i) => wf.b(i+1))
-  const vMax = Math.max(1e-9, ...origVals)
-  const vMin = Math.min(0, ...origVals)
-  const span = Math.max(vMax - vMin, 1e-9)
-  const yMin = vMin - span * 0.05, yMax = vMax + span * 0.05
-  const cH   = H - PT - PB
-  const yOf  = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
+  const GAP = 5
+  const aH   = Math.floor((H - GAP) / 2)
+  const bTop = aH + GAP
+  const bH   = H - bTop
 
-  const vals = Array.from({length: N}, (_, i) => knCoeff(i+1, N) * wf.b(i+1))
-  drawBars(ctx, W, H, vals, '#5b8dee', yMin, yMax)
+  const aBaseMax = Math.max(0.5, ...state.aBase.map(Math.abs))
+  const bBaseMax = Math.max(0.5, ...state.bBase.map(Math.abs))
 
-  // Smooth K_hover(n) preview curve — normalized so K=1 aligns with vMax bar top
-  if (hoverKn && hoverKn !== state.kn) {
-    const step  = barStep(W, N)
-    const SAMP  = Math.max(60, N * 20)
-    const param = kernelParamFor(hoverKn)
-    ctx.save()
-    ctx.strokeStyle = 'rgba(92,224,92,0.55)'
-    ctx.lineWidth   = 2.5
-    ctx.beginPath()
-    for (let i = 0; i <= SAMP; i++) {
-      const n    = 1 + (N - 1) * i / SAMP
-      const kval = KN[hoverKn].coeff(n, param, N)
-      const x    = PL + (n - 0.5) * step
-      const y    = yOf(kval * vMax)
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-    }
-    ctx.stroke()
-    ctx.restore()
-  }
+  drawZone(ctx, W, 0,    aH, state.a, aBaseMax, '#e8a030', 'aₙ  —  cosine', 'a')
+  drawZone(ctx, W, bTop, bH, state.b, bBaseMax, '#5b8dee', 'bₙ  —  sine',   'b')
 
-  const isIdentity = state.kn === 'identity' && !anim.active
-  const title = isIdentity ? 'f̂(n)  — Fourier coefficients' : 'K̂(n)·f̂(n)  — filtered coefficients'
-  panelTitle(ctx, title)
+  // Divider
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(0, aH + 2); ctx.lineTo(W, aH + 2); ctx.stroke()
+  ctx.restore()
 }
 
 function renderR() {
@@ -224,16 +332,24 @@ function renderR() {
   ctx.clearRect(0, 0, W, H)
 
   const wf = WF[state.wf], N = state.N, M = 600
+  const PT = 30, PB = 22
 
-  const exactVals = Array.from({length: M+1}, (_, i) => wf.exact(2*Math.PI*i/M))
-  const outVals   = Array.from({length: M+1}, (_, i) => {
+  const exactVals = wf.exact
+    ? Array.from({length: M+1}, (_, i) => wf.exact(2*Math.PI*i/M))
+    : null
+
+  const outVals = Array.from({length: M+1}, (_, i) => {
     const th = 2*Math.PI*i/M
     let s = 0
-    for (let n = 1; n <= N; n++) s += knCoeff(n, N) * wf.b(n) * Math.sin(n * th)
+    for (let n = 1; n <= N; n++) {
+      const k = knCoeff(n, N)
+      s += k * state.a[n-1] * Math.cos(n * th)
+      s += k * state.b[n-1] * Math.sin(n * th)
+    }
     return s
   })
 
-  const all  = [...exactVals, ...outVals]
+  const all  = [...(exactVals ?? []), ...outVals]
   const vMax = Math.max(...all), vMin = Math.min(...all)
   const span = Math.max(vMax - vMin, 1e-9)
   const yMin = vMin - span * 0.08, yMax = vMax + span * 0.08
@@ -241,28 +357,27 @@ function renderR() {
   const yOf = v => PT + (1 - (v - yMin) / (yMax - yMin)) * (H - PT - PB)
   hline(ctx, W, yOf(0))
 
-  drawLineCurve(ctx, W, H, exactVals, yMin, yMax, 'rgba(255,255,255,0.2)', 1.5)
-  drawLineCurve(ctx, W, H, outVals,   yMin, yMax, '#ffd93d', 2.5)
+  if (exactVals) drawLineCurve(ctx, W, H, exactVals, yMin, yMax, 'rgba(255,255,255,0.2)', 1.5)
+  drawLineCurve(ctx, W, H, outVals, yMin, yMax, '#ffd93d', 2.5)
 
   ctx.save()
-  ctx.font = '10px Inter, sans-serif'
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'
-  ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fillText('f(θ)',      W - PR - 58, PT/2)
-  ctx.fillStyle = '#ffd93d';               ctx.fillText('(K∗f)(θ)', W - PR, PT/2)
+  ctx.font = '10px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right'
+  if (exactVals) { ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fillText('f(θ)', W - PR - 58, PT/2) }
+  ctx.fillStyle = '#ffd93d'; ctx.fillText('(K∗f)(θ)', W - PR, PT/2)
   ctx.restore()
 
-  panelTitle(ctx, '(K∗f)(θ)  — output,  θ ∈ [0, 2π]')
+  panelTitle(ctx, '(K∗f)(θ)  —  output,  θ ∈ [0, 2π]')
 }
 
 function render() { renderBL(); renderR() }
 
-// ── rAF loop (animation only) ─────────────────────────────────────────────────
+// ── rAF loop ──────────────────────────────────────────────────────────────────
 function loop(ts) {
   requestAnimationFrame(loop)
   if (!anim.active) return
   if (!anim.startTime) anim.startTime = ts
   const raw = Math.min(1, (ts - anim.startTime) / anim.dur)
-  anim.t = raw * raw * (3 - 2 * raw)   // smoothstep
+  anim.t = raw * raw * (3 - 2 * raw)
   if (raw >= 1) anim.active = false
   render()
 }
@@ -275,12 +390,11 @@ createSelect({
   container: ctrlEl, label: 'Function',
   options: Object.entries(WF).map(([v, w]) => ({ value: v, label: w.label })),
   value: state.wf,
-  onChange: v => { state.wf = v; anim.active = false; render() },
+  onChange: v => { state.wf = v; anim.active = false; resetCoeffs(); render() },
 })
 
 addDivider(ctrlEl)
 
-// Kernel button group
 const knWrap = document.createElement('div')
 knWrap.className = 'ctrl-group'
 ctrlEl.appendChild(knWrap)
@@ -321,7 +435,13 @@ createSlider({
   container: ctrlEl, label: 'Terms N',
   min: 2, max: 50, step: 1, value: state.N,
   format: v => Math.round(v),
-  onChange: v => { state.N = Math.round(v); anim.active = false; render() },
+  onChange: v => {
+    const oldN = state.N
+    state.N = Math.round(v)
+    anim.active = false
+    resizeCoeffs(oldN)
+    render()
+  },
 })
 
 const paramWrap = document.createElement('span')
@@ -344,4 +464,5 @@ function refreshParam() {
 refreshParam()
 
 window.addEventListener('resize', render)
+resetCoeffs()
 render()
