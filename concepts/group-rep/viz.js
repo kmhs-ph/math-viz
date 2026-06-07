@@ -324,7 +324,10 @@ export class Visualizer {
     this.paletteIdx   = 0           // 0 = erase, 1-5 = color
     this._screenEdges = []          // 2D 변 클릭 감지
     this._screenPolys = []          // 3D 면 클릭 감지
-    this.onBaseVecPick = null       // (v: number[]) => void, 3D base vector 선택 콜백
+    this.onBaseVecPick    = null       // (v: number[]) => void, 3D base vector 선택 콜백
+    this._widgetCanvas    = null       // base vector mini-sphere widget
+    this._widgetBaseVec   = null
+    this._widgetHandlers  = null
 
     this._rafId          = null
     this._clickHandler   = null
@@ -430,6 +433,7 @@ export class Visualizer {
     this._resize()
     this._update(ts)
     this._draw()
+    this._drawWidget()
   }
 
   _startLoop() {
@@ -605,8 +609,7 @@ export class Visualizer {
 
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    const hint3d = this.onBaseVecPick ? 'Drag to rotate · Click to set base vector' : 'Drag to rotate'
-    ctx.fillText(hint3d, 12, H - 10)
+    ctx.fillText('Drag to rotate', 12, H - 10)
   }
 
   // ── A5 4D: 4-simplex Schlegel diagram ────────────────────────────────────
@@ -639,7 +642,7 @@ export class Visualizer {
     const scrn   = verts3.map(toSc)
     const deps   = verts3.map(depth)
 
-    // ─ 5 tetrahedral cells: cell i = all vertices except i ─
+    // ─ 5 tetrahedral cells: subtle fill for depth cue ─
     const allTris = []
     for (let ci = 0; ci < 5; ci++) {
       const vIdxs = [0,1,2,3,4].filter(k => k !== ci)
@@ -647,31 +650,30 @@ export class Visualizer {
         for (let b=a+1; b<4; b++)
           for (let c=b+1; c<4; c++) {
             const [ia, ib, ic] = [vIdxs[a], vIdxs[b], vIdxs[c]]
-            allTris.push({ ci, ia, ib, ic, dep: (deps[ia]+deps[ib]+deps[ic]) / 3 })
+            allTris.push({ ia, ib, ic, dep: (deps[ia]+deps[ib]+deps[ic]) / 3 })
           }
     }
     allTris.sort((a, b) => a.dep - b.dep)
-
-    for (const { ci, ia, ib, ic, dep } of allTris) {
-      const sa = scrn[ia], sb = scrn[ib], sc = scrn[ic]
-      const mc = this.markedFaces.get(ci)
+    for (const { ia, ib, ic, dep } of allTris) {
       ctx.beginPath()
-      ctx.moveTo(...sa); ctx.lineTo(...sb); ctx.lineTo(...sc); ctx.closePath()
-      ctx.fillStyle = mc
-        ? PALETTE_FILLS[mc]
-        : (dep > 0 ? 'rgba(91,141,238,0.09)' : 'rgba(91,141,238,0.03)')
+      ctx.moveTo(...scrn[ia]); ctx.lineTo(...scrn[ib]); ctx.lineTo(...scrn[ic]); ctx.closePath()
+      ctx.fillStyle = dep > 0 ? 'rgba(91,141,238,0.07)' : 'rgba(91,141,238,0.02)'
       ctx.fill()
-      this._screenPolys.push({ idx: ci, pts: [sa, sb, sc] })
     }
 
-    // ─ K₅ edges ─
+    // ─ K₅ edges — colored if marked ─
     for (let i = 0; i < 5; i++)
       for (let j = i+1; j < 5; j++) {
+        const key = `${i},${j}`
+        const mc  = this.markedEdges.get(key)
         const dep = (deps[i]+deps[j]) / 2
         ctx.beginPath(); ctx.moveTo(...scrn[i]); ctx.lineTo(...scrn[j])
-        ctx.strokeStyle = dep > 0 ? C.shapeLine : 'rgba(91,141,238,0.28)'
-        ctx.lineWidth   = dep > 0 ? 1.8 : 0.9
+        ctx.strokeStyle = mc
+          ? PALETTE_COLORS[mc]
+          : (dep > 0 ? C.shapeLine : 'rgba(91,141,238,0.28)')
+        ctx.lineWidth = mc ? 3.2 : (dep > 0 ? 1.8 : 0.9)
         ctx.stroke()
+        this._screenEdges.push({ key, a: [...scrn[i]], b: [...scrn[j]] })
       }
 
     // ─ Vertices ─
@@ -867,6 +869,155 @@ export class Visualizer {
     ctx.fillText(`${dim}D → 3D  [P] new projection`, 12, H - 10)
   }
 
+  // ── Base vector widget (mini S² in left panel) ───────────────────────────
+
+  setWidgetCanvas(canvas) {
+    if (this._widgetHandlers) {
+      const { el, onDown, onMove, onUp } = this._widgetHandlers
+      el.removeEventListener('mousedown', onDown)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      this._widgetHandlers = null
+    }
+    this._widgetCanvas = canvas
+    if (!canvas) return
+
+    let startX = 0, startY = 0, lastX = 0, lastY = 0, isDrag = false, mouseDown = false
+    const onDown = e => {
+      if (e.button !== 0) return
+      startX = lastX = e.clientX; startY = lastY = e.clientY
+      isDrag = false; mouseDown = true; e.preventDefault()
+    }
+    const onMove = e => {
+      if (!mouseDown) return
+      if (Math.hypot(e.clientX-startX, e.clientY-startY) > 3) isDrag = true
+      if (isDrag) {
+        this.orbitTheta += (e.clientX - lastX) * 0.008
+        this.orbitPhi   += (e.clientY - lastY) * 0.008
+        this.orbitPhi = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, this.orbitPhi))
+      }
+      lastX = e.clientX; lastY = e.clientY
+    }
+    const onUp = e => {
+      if (mouseDown && !isDrag) this._handleBasePickWidget(e)
+      mouseDown = false; isDrag = false
+    }
+    canvas.addEventListener('mousedown', onDown)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    this._widgetHandlers = { el: canvas, onDown, onMove, onUp }
+  }
+
+  _handleBasePickWidget(e) {
+    if (!this.onBaseVecPick || !this._widgetCanvas) return
+    const canvas = this._widgetCanvas
+    const { left, top } = canvas.getBoundingClientRect()
+    const W = canvas.offsetWidth, H = canvas.offsetHeight
+    const cx = W / 2, cy = H / 2
+    const scale = Math.min(W, H) * 0.38
+    const rx = (e.clientX - left - cx) / scale
+    const ry = (cy - (e.clientY - top)) / scale
+    const r2 = rx*rx + ry*ry
+    let nx, ny, nz
+    if (r2 > 1) {
+      const len = Math.sqrt(r2); nx = rx/len; ny = ry/len; nz = 0
+    } else {
+      nx = rx; ny = ry; nz = Math.sqrt(1 - r2)
+    }
+    const R = buildOrbitMat(this.orbitTheta ?? -Math.PI/4, this.orbitPhi ?? Math.PI/6)
+    this.onBaseVecPick([
+      R[0][0]*nx + R[1][0]*ny + R[2][0]*nz,
+      R[0][1]*nx + R[1][1]*ny + R[2][1]*nz,
+      R[0][2]*nx + R[1][2]*ny + R[2][2]*nz,
+    ])
+  }
+
+  _drawWidget() {
+    const canvas = this._widgetCanvas
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const W = canvas.offsetWidth, H = canvas.offsetHeight
+    if (W === 0 || H === 0) return
+    if (canvas.width !== Math.round(W*dpr) || canvas.height !== Math.round(H*dpr)) {
+      canvas.width  = Math.round(W * dpr)
+      canvas.height = Math.round(H * dpr)
+    }
+    const ctx = canvas.getContext('2d')
+    ctx.resetTransform(); ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, W, H)
+
+    const cx = W/2, cy = H/2
+    const sc = Math.min(W, H) * 0.38
+    const th = this.orbitTheta ?? -Math.PI/4
+    const ph = this.orbitPhi   ??  Math.PI/6
+    const R  = buildOrbitMat(th, ph)
+    const applyR = ([x,y,z]) => [R[0][0]*x+R[0][1]*y+R[0][2]*z, R[1][0]*x+R[1][1]*y+R[1][2]*z, R[2][0]*x+R[2][1]*y+R[2][2]*z]
+    const toSc   = v => { const [rx,ry] = applyR(v); return [cx+rx*sc, cy-ry*sc] }
+    const dep    = v => applyR(v)[2]
+
+    // Sphere background
+    ctx.beginPath(); ctx.arc(cx, cy, sc, 0, Math.PI*2)
+    ctx.fillStyle = 'rgba(12,12,28,0.8)'; ctx.fill()
+    ctx.strokeStyle = 'rgba(91,141,238,0.20)'; ctx.lineWidth = 1; ctx.stroke()
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(91,141,238,0.09)'; ctx.lineWidth = 0.6
+    for (let ld = -60; ld <= 60; ld += 30) {
+      const la = ld*Math.PI/180, rl = Math.cos(la), zl = Math.sin(la)
+      ctx.beginPath(); let first = true
+      for (let j = 0; j <= 60; j++) {
+        const ln = j/60*2*Math.PI
+        const [sx,sy] = toSc([rl*Math.cos(ln), rl*Math.sin(ln), zl])
+        first ? ctx.moveTo(sx,sy) : ctx.lineTo(sx,sy); first = false
+      }
+      ctx.stroke()
+    }
+    for (let ld = 0; ld < 180; ld += 30) {
+      const ln = ld*Math.PI/180
+      for (const sign of [1, -1]) {
+        ctx.beginPath(); let first = true
+        for (let j = 0; j <= 36; j++) {
+          const la = j/36*Math.PI - Math.PI/2
+          const [sx,sy] = toSc([sign*Math.cos(la)*Math.cos(ln), sign*Math.cos(la)*Math.sin(ln), Math.sin(la)])
+          first ? ctx.moveTo(sx,sy) : ctx.lineTo(sx,sy); first = false
+        }
+        ctx.stroke()
+      }
+    }
+
+    // Coordinate axes
+    const AX = 1.22
+    const axRGB = [[255,107,107], [107,203,119], [77,150,255]]
+    const axNames = ['x','y','z']
+    for (let i = 0; i < 3; i++) {
+      const tip = [0,0,0]; tip[i] = AX
+      const d = dep(tip)
+      const al = d > 0 ? 0.9 : 0.28
+      const col = `rgba(${axRGB[i].join(',')},${al})`
+      drawArrow(ctx, cx, cy, ...toSc(tip), col, 6)
+      const lp = [0,0,0]; lp[i] = AX + 0.22
+      const [lx,ly] = toSc(lp)
+      ctx.fillStyle = col; ctx.font = '9px var(--font-mono,monospace)'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(axNames[i], lx, ly)
+    }
+
+    // Base vector
+    const bv = this._widgetBaseVec
+    if (bv) {
+      const len = Math.hypot(...bv)
+      if (len > 1e-9) {
+        const vn = bv.map(x => x/len)
+        const d  = dep(vn)
+        const al = d > 0 ? 1.0 : 0.38
+        const col = `rgba(255,220,80,${al})`
+        const [sx, sy] = toSc(vn)
+        drawArrow(ctx, cx, cy, sx, sy, col, 7)
+        ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI*2)
+        ctx.fillStyle = col; ctx.fill()
+      }
+    }
+  }
+
   // ── 3D base vector pick (click → back-project to S²) ────────────────────
 
   _handleBasePick3D(e) {
@@ -950,8 +1101,9 @@ export class Visualizer {
     }
     const onUp = e => {
       if (mouseDown && !isDrag) {
-        if (this.dim === 3 && this.onBaseVecPick) this._handleBasePick3D(e)
-        else                                       this._handleFaceClick(e)
+        if      (this.vizMode === 'simplex4D') this._handleEdgeClick(e)
+        else if (this.dim === 2)               this._handleFaceClick(e)
+        // dim===3: widget handles base vector; dim>=4 other: no click action
       }
       isDrag = false; mouseDown = false; canvas.style.cursor = 'grab'
     }
@@ -979,6 +1131,7 @@ export class Visualizer {
       this.canvas.removeEventListener('click', this._clickHandler)
       this._clickHandler = null
     }
+    this.setWidgetCanvas(null)
   }
 }
 

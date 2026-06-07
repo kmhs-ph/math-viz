@@ -28,10 +28,12 @@ const matLabel    = document.getElementById('matrix-label')
 const matDisplay  = document.getElementById('matrix-display')
 const btnUndo     = document.getElementById('btn-undo')
 const btnReset    = document.getElementById('btn-reset')
-const edgePalette = document.getElementById('edge-palette')
-const paletteBtns = edgePalette.querySelectorAll('.palette-btn')
-const infoBtn     = document.getElementById('info-btn')
-const infoTooltip = document.getElementById('info-tooltip')
+const edgePalette    = document.getElementById('edge-palette')
+const paletteBtns    = edgePalette.querySelectorAll('.palette-btn')
+const infoBtn        = document.getElementById('info-btn')
+const infoTooltip    = document.getElementById('info-tooltip')
+const basevecSection = document.getElementById('basevec-section')
+const basevecCanvas  = document.getElementById('basevec-canvas')
 
 // ── 팔레트 초기화 ────────────────────────────────────────────────────────
 paletteBtns.forEach(btn => {
@@ -111,7 +113,16 @@ function init() {
   viz = new Visualizer(mainCanvas)
   const orbitPts = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
   viz.init(irr.dim, orbitPts, irr.vizMode)
-  if (irr.dim === 3) viz.onBaseVecPick = v => viz.updateOrbit(computeOrbit(irr, group, v))
+  if (irr.dim === 3) {
+    const initVec = irr.baseVec ?? [1, 0, 0]
+    viz._widgetBaseVec = initVec
+    viz.onBaseVecPick = v => { viz._widgetBaseVec = v; viz.updateOrbit(computeOrbit(irr, group, v)) }
+    viz.setWidgetCanvas(basevecCanvas)
+    basevecSection.style.display = ''
+  } else {
+    viz.setWidgetCanvas(null)
+    basevecSection.style.display = 'none'
+  }
   setPaletteVisible(irr)
   updateInfoTooltip(irr)
 
@@ -148,7 +159,16 @@ function selectIrrep(idx) {
   viz = new Visualizer(mainCanvas)
   const orbitPts2 = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
   viz.init(irr.dim, orbitPts2, irr.vizMode)
-  if (irr.dim === 3) viz.onBaseVecPick = v => viz.updateOrbit(computeOrbit(irr, group, v))
+  if (irr.dim === 3) {
+    const initVec2 = irr.baseVec ?? [1, 0, 0]
+    viz._widgetBaseVec = initVec2
+    viz.onBaseVecPick = v => { viz._widgetBaseVec = v; viz.updateOrbit(computeOrbit(irr, group, v)) }
+    viz.setWidgetCanvas(basevecCanvas)
+    basevecSection.style.display = ''
+  } else {
+    viz.setWidgetCanvas(null)
+    basevecSection.style.display = 'none'
+  }
   setPaletteVisible(irr)
   updateInfoTooltip(irr)
 
