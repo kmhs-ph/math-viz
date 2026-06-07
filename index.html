@@ -7,15 +7,85 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/main-66HAMm-q.js"></script>
-  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-YUI7yXo2.js">
-  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-BVqYZ9DG.css">
+  <script type="module" crossorigin src="/math-viz/assets/main-BThfK-wD.js"></script>
+  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-Cpk15Ldv.js">
+  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-BVwHOWnl.css">
 </head>
 <body>
-  <header class="home-header">
-    <h1>Math Visualizations</h1>
-    <p>Explore mathematical concepts through direct interaction.</p>
-  </header>
-  <main id="grid" class="concept-grid"></main>
+
+  <div id="hero-glow" class="hero-glow"></div>
+  <div id="particle-container" class="particle-container"></div>
+
+  <nav class="site-nav">
+    <a class="site-nav__brand" href="./">Math Visualizations</a>
+  </nav>
+
+  <section class="home-hero">
+    <h1 class="home-hero__title">Math Visualizations</h1>
+    <p class="home-hero__subtitle">Explore mathematical concepts through direct interaction. Move beyond abstract notation into a space where logic becomes visible.</p>
+    <div class="filament-line"></div>
+  </section>
+
+  <section class="bento-wrapper">
+    <div id="grid" class="bento-grid"></div>
+
+    <div class="home-philosophy glass-panel">
+      <div class="philosophy-item">
+        <h3>Precision First</h3>
+        <p>High-fidelity numerical methods ensure that the visual beauty is matched by mathematical rigor.</p>
+      </div>
+      <div class="philosophy-divider"></div>
+      <div class="philosophy-item">
+        <h3>Interactive Proofs</h3>
+        <p>Manipulate parameters in real-time. Watch as the geometry reacts instantly to your theoretical changes.</p>
+      </div>
+      <div class="philosophy-divider"></div>
+      <div class="philosophy-item">
+        <h3>Open Access</h3>
+        <p>Built for researchers and students alike. All visualization kernels are open source and community verified.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div>
+        <span class="site-footer__brand">Math Visualizations</span>
+        <p>© 2024 Math Visualizations. Open source mathematical exploration.</p>
+      </div>
+      <div class="site-footer__links">
+        <a href="https://github.com/kmhs-ph/math-viz" target="_blank" rel="noopener">GitHub</a>
+        <a href="#">Documentation</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const glow = document.getElementById('hero-glow')
+    window.addEventListener('mousemove', e => {
+      glow.style.left = e.clientX + 'px'
+      glow.style.top  = e.clientY + 'px'
+    })
+
+    const container = document.getElementById('particle-container')
+    for (let i = 0; i < 20; i++) {
+      const dot = document.createElement('div')
+      dot.className = 'particle'
+      const size = Math.random() * 3 + 1
+      dot.style.width  = size + 'px'
+      dot.style.height = size + 'px'
+      dot.style.left   = (Math.random() * 100) + '%'
+      dot.style.top    = (Math.random() * 100) + '%'
+      const dur   = (Math.random() * 10 + 10) * 1000
+      const delay = Math.random() * -20 * 1000
+      dot.animate([
+        { transform: 'translate(0,0)', opacity: 0.1 },
+        { transform: `translate(${Math.random()*200-100}px,${Math.random()*200-100}px)`, opacity: 0.3 },
+        { transform: 'translate(0,0)', opacity: 0.1 },
+      ], { duration: dur, iterations: Infinity, delay, easing: 'ease-in-out' })
+      container.appendChild(dot)
+    }
+  </script>
 </body>
 </html>
