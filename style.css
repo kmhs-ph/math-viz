@@ -387,12 +387,54 @@ select:hover, select:focus { border-color: var(--accent); }
 .edge-palette {
   position: absolute;
   top: 10px;
-  right: 10px;
+  right: 46px;
   display: flex;
   flex-direction: column;
   gap: 5px;
   z-index: 10;
 }
+
+/* Info 버튼 + 툴팁 */
+.gr-info-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(91,141,238,0.18);
+  border: 1px solid rgba(91,141,238,0.42);
+  color: var(--accent-hover, #7aa5f5);
+  font-size: 13px;
+  cursor: pointer;
+  z-index: 11;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+.gr-info-btn:hover { background: rgba(91,141,238,0.34); }
+
+.gr-info-tooltip {
+  position: absolute;
+  top: 44px;
+  right: 10px;
+  width: 256px;
+  background: var(--surface, #16161e);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.79rem;
+  line-height: 1.55;
+  color: var(--text, #cdd6f4);
+  z-index: 11;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.gr-info-tooltip p { margin: 0; }
+.gr-info-tooltip p + p { margin-top: 6px; }
+.gr-info-tooltip strong { color: var(--accent-hover, #7aa5f5); }
 
 .palette-btn {
   width: 26px;

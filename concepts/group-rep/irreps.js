@@ -22,7 +22,7 @@ const _c2  = _c8 * _c8
 
 // ─── Irrep 팩토리 ─────────────────────────────────────────────────────────────
 
-function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices, vizMode = null, baseVec = null }) {
+function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices, vizMode = null, baseVec = null, desc = '' }) {
   const cache = new Map()
 
   function getMatrix(group, element) {
@@ -61,7 +61,7 @@ function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices, vizMode = 
     return I
   }
 
-  return { name, dim, field: 'R', charLabel: charLabel || name, genMatrices, getMatrix, vizMode, baseVec }
+  return { name, dim, charLabel: charLabel || name, genMatrices, getMatrix, vizMode, baseVec, desc }
 }
 
 // ─── D_n irrep ────────────────────────────────────────────────────────────
@@ -73,25 +73,30 @@ function dnIrreps(n) {
   irreps.push(buildIrrep({
     name: 'trivial', dim: 1, charLabel: 'χ₁',
     genMatrices: { [rId]: [[1]], [sId]: [[1]] },
+    desc: '<p><strong>Trivial 1D.</strong> ρ(g) = 1 for all g ∈ D<sub>n</sub>.</p>',
   }))
 
   if (n % 2 === 1) {
     irreps.push(buildIrrep({
       name: 'det', dim: 1, charLabel: 'χ₂',
       genMatrices: { [rId]: [[1]], [sId]: [[-1]] },
+      desc: '<p><strong>Sign 1D.</strong> Rotations → +1, reflections → −1. The unique non-trivial 1D irrep of D<sub>n</sub> for odd n.</p>',
     }))
   } else {
     irreps.push(buildIrrep({
       name: 'det', dim: 1, charLabel: 'χ₂',
       genMatrices: { [rId]: [[1]], [sId]: [[-1]] },
+      desc: '<p><strong>Sign 1D.</strong> ρ(r) = +1, ρ(s) = −1.</p>',
     }))
     irreps.push(buildIrrep({
       name: "det'", dim: 1, charLabel: 'χ₃',
       genMatrices: { [rId]: [[-1]], [sId]: [[1]] },
+      desc: "<p><strong>det′ (1D).</strong> ρ(r) = −1, ρ(s) = +1. Only exists for even n.</p>",
     }))
     irreps.push(buildIrrep({
       name: "det''", dim: 1, charLabel: 'χ₄',
       genMatrices: { [rId]: [[-1]], [sId]: [[-1]] },
+      desc: "<p><strong>det″ (1D).</strong> ρ(r) = −1, ρ(s) = −1. Only exists for even n.</p>",
     }))
   }
 
@@ -102,6 +107,9 @@ function dnIrreps(n) {
       name: k === 1 ? 'std' : `ρ${k}`,
       dim: 2, charLabel: k === 1 ? 'χ₂ᴰ' : `χ${k}ᴰ`,
       genMatrices: { [rId]: rot2(theta), [sId]: reflY() },
+      desc: k === 1
+        ? `<p><strong>Standard 2D.</strong> r ↦ Rot(2π/n), s ↦ y-reflection. The fundamental 2D irrep of D<sub>${n}</sub>.</p><p>The orbit of any non-axis vector is a regular ${n}-gon.</p>`
+        : `<p><strong>ρ<sub>${k}</sub> (2D).</strong> r ↦ Rot(2π·${k}/n), s ↦ y-reflection.</p>`,
     }))
   }
 
@@ -118,10 +126,12 @@ function s3Irreps() {
     buildIrrep({
       name: 'trivial', dim: 1, charLabel: 'χ₁',
       genMatrices: { [tau1Id]: [[1]], [tau2Id]: [[1]] },
+      desc: '<p><strong>Trivial 1D.</strong> ρ(g) = 1 for all g ∈ S<sub>3</sub>.</p>',
     }),
     buildIrrep({
       name: 'sign', dim: 1, charLabel: 'χ₂',
       genMatrices: { [tau1Id]: [[-1]], [tau2Id]: [[-1]] },
+      desc: '<p><strong>Sign 1D.</strong> Even permutations → +1, odd → −1.</p>',
     }),
     buildIrrep({
       name: 'std', dim: 2, charLabel: 'χ₃',
@@ -129,6 +139,7 @@ function s3Irreps() {
         [tau1Id]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
         [tau2Id]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
       },
+      desc: '<p><strong>Standard 2D.</strong> S<sub>3</sub> ≅ D<sub>3</sub>: generators act as reflections in lines at 0° and 60°.</p><p>Orbit: equilateral triangle.</p>',
     }),
   ]
 }
@@ -143,10 +154,12 @@ function s4Irreps() {
     buildIrrep({
       name: 'trivial', dim: 1, charLabel: 'χ₁',
       genMatrices: { [id12]: [[1]], [id23]: [[1]], [id34]: [[1]] },
+      desc: '<p><strong>Trivial 1D.</strong> ρ(g) = 1 for all g ∈ S<sub>4</sub>.</p>',
     }),
     buildIrrep({
       name: 'sign', dim: 1, charLabel: 'χ₂',
       genMatrices: { [id12]: [[-1]], [id23]: [[-1]], [id34]: [[-1]] },
+      desc: '<p><strong>Sign 1D.</strong> Even permutations → +1, odd → −1.</p>',
     }),
     buildIrrep({
       name: 'ρ₂', dim: 2, charLabel: 'χ₃',
@@ -155,6 +168,7 @@ function s4Irreps() {
         [id23]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
         [id34]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
       },
+      desc: '<p><strong>ρ₂ (2D).</strong> Pulled back from the 2D irrep of S<sub>3</sub> via S<sub>4</sub> ↠ S<sub>4</sub>/V<sub>4</sub> ≅ S<sub>3</sub>.</p>',
     }),
     buildIrrep({
       name: 'std', dim: 3, charLabel: 'χ₄',
@@ -163,6 +177,7 @@ function s4Irreps() {
         [id23]: [[-_r2,    0, -_r2], [   0, 1,    0], [-_r2,   0,  _r2]],
         [id34]: [[ _s2, -_c8,  _q], [-_c8, 0,  _s8], [ _q,  _s8,  _c2]],
       },
+      desc: '<p><strong>Standard 3D.</strong> Restriction of the natural 4D permutation rep to ⊥(1,1,1,1), orthogonalized.</p><p>S<sub>4</sub> ≅ rotation symmetries of the cube. Orbit: octahedron (6), cube (8), cuboctahedron (12), and other Wythoff polytopes.</p>',
     }),
     buildIrrep({
       name: 'std⊗sgn', dim: 3, charLabel: 'χ₅',
@@ -171,6 +186,7 @@ function s4Irreps() {
         [id23]: [[ _r2,    0,  _r2], [   0, -1,   0], [ _r2,  0,  -_r2]],
         [id34]: [[-_s2,  _c8, -_q], [ _c8, 0, -_s8], [-_q, -_s8, -_c2]],
       },
+      desc: '<p><strong>std⊗sgn (3D).</strong> Tensor product of the standard 3D rep with the sign character.</p><p>Orbit polytopes include the snub cube and related chiral Wythoff polytopes.</p>',
     }),
   ]
 }
@@ -190,6 +206,7 @@ function a5Irreps() {
     buildIrrep({
       name: 'trivial', dim: 1, charLabel: 'χ₁',
       genMatrices: { [rId]: [[1]], [cId]: [[1]] },
+      desc: '<p><strong>Trivial 1D.</strong> ρ(g) = 1 for all g ∈ A<sub>5</sub>.</p>',
     }),
 
     // 3D icosahedral (already orthogonal, α = +√5)
@@ -203,6 +220,7 @@ function a5Irreps() {
         ],
         [cId]: [[0,0,1],[1,0,0],[0,1,0]],
       },
+      desc: '<p><strong>Icosahedral 3D rep.</strong> A<sub>5</sub> ≅ I (icosahedral rotation group) embeds in SO(3); this is the standard action on ℝ³. The golden ratio φ = (1+√5)/2 appears in the matrices.</p><p>Orbit polytopes: icosahedron (12), dodecahedron (20), icosidodecahedron (30), and other Wythoff polytopes.</p>',
     }),
 
     // 3D' Galois conjugate (already orthogonal, α = −√5)
@@ -216,6 +234,7 @@ function a5Irreps() {
         ],
         [cId]: [[0,0,1],[1,0,0],[0,1,0]],
       },
+      desc: "<p><strong>Galois conjugate 3D rep.</strong> Same structure as 3D, but with the golden ratio φ replaced by its conjugate −1/φ = (1−√5)/2.</p><p>The two 3D irreps are inequivalent over ℝ.</p>",
     }),
 
     // 4D: pre-orthogonalized permutation restriction; Schlegel diagram of 4-simplex
@@ -237,6 +256,7 @@ function a5Irreps() {
           [ 0,                 0,               0,               1],
         ],
       },
+      desc: '<p><strong>Standard 4D irrep.</strong> Restriction of S<sub>5</sub>\'s 5D permutation rep to the A<sub>5</sub>-stable subspace ⊥(1,…,1), orthogonalized.</p><p>Visualized as <strong>rotational symmetries of the 4-simplex</strong> (pentachoron) in Schlegel projection. The <strong>5 tetrahedral cells</strong> can be colored by clicking them (use the palette).</p>',
     }),
 
     // 5D: l=2 spherical harmonic rep; visualized as f_Q coloring on S²
@@ -259,6 +279,7 @@ function a5Irreps() {
           [ 0.626723678494,  0.366109071770,  0.609566470626,  0.248214214482, -0.2],
         ],
       },
+      desc: '<p><strong>l=2 spherical harmonic rep.</strong> A<sub>5</sub> ≅ I ⊂ SO(3) acts on traceless symmetric 3×3 matrices by Q ↦ R<sub>g</sub> Q R<sub>g</sub><sup>T</sup>, equivalent to the l=2 rep on spherical harmonics.</p><p>f<sub>Q</sub>(u) = u<sup>T</sup>Qu is colored on S²: <span style="color:#4d96ff">■ positive (blue)</span>, <span style="color:#ff6b6b">■ negative (red)</span>, dark band = nodal curve. The colorbar shows the eigenvalue range.</p>',
     }),
   ]
 }
@@ -274,10 +295,12 @@ function a4Irreps() {
     buildIrrep({
       name: 'trivial', dim: 1, charLabel: 'χ₁',
       genMatrices: { [gen1Id]: [[1]], [gen2Id]: [[1]] },
+      desc: '<p><strong>Trivial 1D.</strong> ρ(g) = 1 for all g ∈ A<sub>4</sub>.</p>',
     }),
     buildIrrep({
       name: '2D', dim: 2, charLabel: 'χ₂₃',
       genMatrices: { [gen1Id]: rot2(2 * Math.PI / 3), [gen2Id]: rot2(4 * Math.PI / 3) },
+      desc: '<p><strong>2D irrep.</strong> A<sub>4</sub> has two complex 1D irreps (ω and ω̄, ω = e<sup>2πi/3</sup>); their direct sum over ℝ is this 2D rep. Generators act as Rot(120°) and Rot(240°).</p>',
     }),
     buildIrrep({
       name: 'std', dim: 3, charLabel: 'χ₄',
@@ -285,6 +308,7 @@ function a4Irreps() {
         [gen1Id]: [[ _q, -_s8, -_c2], [-_c8, 0, -_s8], [_s2,  _c8, -_q]],
         [gen2Id]: [[-_q,  _c8, -_s2], [-_s8, 0,  _c8], [_c2,  _s8,  _q]],
       },
+      desc: '<p><strong>Standard 3D.</strong> Restriction of S<sub>4</sub>\'s permutation rep to A<sub>4</sub>, orthogonalized.</p><p>A<sub>4</sub> ≅ rotation symmetries of the tetrahedron. Orbit: tetrahedron (4), octahedron (6), truncated tetrahedron (12), cuboctahedron (12), etc.</p>',
     }),
   ]
 }

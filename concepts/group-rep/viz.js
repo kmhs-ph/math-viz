@@ -15,6 +15,19 @@ const C = {
 export const PALETTE_COLORS = [null, '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#c77dff']
 const PALETTE_FILLS  = [null, '#ff6b6b99', '#ffd93d99', '#6bcb7799', '#4d96ff99', '#c77dff99']
 
+// ── 3×3 traceless symmetric matrix eigenvalues (ascending) ───────────────────
+// Depressed cubic: λ³ − pλ − q = 0  where p = tr(Q²)/2, q = det(Q)
+function eigenvalues3x3sym0(Q) {
+  const a=Q[0][0], b=Q[1][1], c=Q[2][2], d=Q[0][1], e=Q[0][2], f=Q[1][2]
+  const p = (a*a + b*b + c*c + 2*d*d + 2*e*e + 2*f*f) / 2
+  if (p < 1e-14) return [0, 0, 0]
+  const q  = a*(b*c-f*f) - d*(d*c-f*e) + e*(d*f-b*e)
+  const sq = Math.sqrt(p / 3)
+  const t  = Math.acos(Math.max(-1, Math.min(1, q / (2*sq*sq*sq)))) / 3
+  const TW = 2 * Math.PI / 3
+  return [2*sq*Math.cos(t), 2*sq*Math.cos(t-TW), 2*sq*Math.cos(t+TW)].sort((a,b) => a-b)
+}
+
 // ── A5 5D 인터트위너: 5D 벡터 → traceless symmetric 3×3 계수 ──────────────
 // q = A5_5D_C @ v; Q = Σ qᵢBᵢ (Bᵢ: 표준 traceless symmetric basis)
 const A5_5D_C = [
@@ -311,6 +324,7 @@ export class Visualizer {
     this.paletteIdx   = 0           // 0 = erase, 1-5 = color
     this._screenEdges = []          // 2D 변 클릭 감지
     this._screenPolys = []          // 3D 면 클릭 감지
+    this.onBaseVecPick = null       // (v: number[]) => void, 3D base vector 선택 콜백
 
     this._rafId          = null
     this._clickHandler   = null
@@ -591,7 +605,8 @@ export class Visualizer {
 
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText('Drag to rotate', 12, H - 10)
+    const hint3d = this.onBaseVecPick ? 'Drag to rotate · Click to set base vector' : 'Drag to rotate'
+    ctx.fillText(hint3d, 12, H - 10)
   }
 
   // ── A5 4D: 4-simplex Schlegel diagram ────────────────────────────────────
@@ -606,8 +621,7 @@ export class Visualizer {
     const th = this.orbitTheta ?? -Math.PI / 4
     const ph = this.orbitPhi   ?? Math.PI / 6
 
-    // 4D matrix → perspective project to 3D (camera at w = d)
-    const d = 1.5  // simplex vertices have |w| ≤ 0.8 < 1.5
+    const d = 1.5
     const applyM4  = v => M.map(row => row.reduce((s, c, k) => s + c * v[k], 0))
     const proj4to3 = ([x, y, z, w]) => { const f = d / (d - w); return [x*f, y*f, z*f] }
 
@@ -625,32 +639,51 @@ export class Visualizer {
     const scrn   = verts3.map(toSc)
     const deps   = verts3.map(depth)
 
-    const n = this.orbitPts.length
+    // ─ 5 tetrahedral cells: cell i = all vertices except i ─
+    const allTris = []
+    for (let ci = 0; ci < 5; ci++) {
+      const vIdxs = [0,1,2,3,4].filter(k => k !== ci)
+      for (let a=0; a<4; a++)
+        for (let b=a+1; b<4; b++)
+          for (let c=b+1; c<4; c++) {
+            const [ia, ib, ic] = [vIdxs[a], vIdxs[b], vIdxs[c]]
+            allTris.push({ ci, ia, ib, ic, dep: (deps[ia]+deps[ib]+deps[ic]) / 3 })
+          }
+    }
+    allTris.sort((a, b) => a.dep - b.dep)
 
-    // Draw K₅ edges (all 10 pairs)
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const dep = (deps[i] + deps[j]) / 2
-        ctx.beginPath()
-        ctx.moveTo(...scrn[i])
-        ctx.lineTo(...scrn[j])
+    for (const { ci, ia, ib, ic, dep } of allTris) {
+      const sa = scrn[ia], sb = scrn[ib], sc = scrn[ic]
+      const mc = this.markedFaces.get(ci)
+      ctx.beginPath()
+      ctx.moveTo(...sa); ctx.lineTo(...sb); ctx.lineTo(...sc); ctx.closePath()
+      ctx.fillStyle = mc
+        ? PALETTE_FILLS[mc]
+        : (dep > 0 ? 'rgba(91,141,238,0.09)' : 'rgba(91,141,238,0.03)')
+      ctx.fill()
+      this._screenPolys.push({ idx: ci, pts: [sa, sb, sc] })
+    }
+
+    // ─ K₅ edges ─
+    for (let i = 0; i < 5; i++)
+      for (let j = i+1; j < 5; j++) {
+        const dep = (deps[i]+deps[j]) / 2
+        ctx.beginPath(); ctx.moveTo(...scrn[i]); ctx.lineTo(...scrn[j])
         ctx.strokeStyle = dep > 0 ? C.shapeLine : 'rgba(91,141,238,0.28)'
         ctx.lineWidth   = dep > 0 ? 1.8 : 0.9
         ctx.stroke()
       }
-    }
 
-    // Draw vertices
-    for (let i = 0; i < n; i++) {
-      ctx.beginPath()
-      ctx.arc(...scrn[i], deps[i] > 0 ? 5 : 3, 0, Math.PI * 2)
+    // ─ Vertices ─
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath(); ctx.arc(...scrn[i], deps[i] > 0 ? 5 : 3, 0, Math.PI*2)
       ctx.fillStyle = deps[i] > 0 ? C.accentHi : 'rgba(122,165,245,0.45)'
       ctx.fill()
     }
 
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText('4-simplex Schlegel · Drag to rotate', 12, H - 10)
+    ctx.fillText('4-simplex Schlegel · Drag to rotate · Click to mark cells', 12, H - 10)
   }
 
   // ── A5 5D: S² coloring by f_Q(u) = u^T Q u ──────────────────────────────
@@ -734,9 +767,43 @@ export class Visualizer {
     ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2)
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
 
+    // ─ Colorbar ─
+    const [eigMin, , eigMax] = eigenvalues3x3sym0(Q)
+    const range = eigMax - eigMin
+    if (range > 1e-8) {
+      const barW = 13, barH = Math.min(H * 0.54, 200)
+      const barX = W - 10 - barW
+      const barY0 = (H - barH) / 2   // top = max eigenvalue (positive)
+      const barY1 = barY0 + barH      // bottom = min eigenvalue (negative)
+      const zeroFrac = eigMax / range  // fraction from top where f_Q = 0
+
+      const grad = ctx.createLinearGradient(0, barY0, 0, barY1)
+      grad.addColorStop(0, 'rgba(77,150,255,0.92)')
+      grad.addColorStop(Math.max(0, Math.min(1, zeroFrac)), 'rgba(15,15,40,0.88)')
+      grad.addColorStop(1, 'rgba(255,107,107,0.92)')
+      ctx.fillStyle = grad
+      ctx.fillRect(barX, barY0, barW, barH)
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+      ctx.lineWidth = 0.5; ctx.strokeRect(barX, barY0, barW, barH)
+
+      ctx.font = '9px var(--font-mono,monospace)'
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'
+      ctx.textAlign = 'right'
+      const tickX = barX - 2
+
+      const drawTick = (y, label, baseline) => {
+        ctx.beginPath(); ctx.moveTo(tickX, y); ctx.lineTo(barX, y)
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.stroke()
+        ctx.textBaseline = baseline; ctx.fillText(label, tickX - 1, y)
+      }
+      drawTick(barY0, `+${eigMax.toFixed(2)}`, 'top')
+      drawTick(barY0 + zeroFrac * barH, '0', 'middle')
+      drawTick(barY1, eigMin.toFixed(2), 'bottom')
+    }
+
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText('fᵂ(u)=uᵀQu  [■ +blue ■ −red ■ 0=nodal] · Drag to rotate', 12, H - 10)
+    ctx.fillText('fQ(u)=uᵀQu  · Drag to rotate', 12, H - 10)
   }
 
   // ── nD → 2D 투영 ──────────────────────────────────────────────────────────
@@ -800,6 +867,33 @@ export class Visualizer {
     ctx.fillText(`${dim}D → 3D  [P] new projection`, 12, H - 10)
   }
 
+  // ── 3D base vector pick (click → back-project to S²) ────────────────────
+
+  _handleBasePick3D(e) {
+    if (!this.onBaseVecPick) return
+    const rect  = this.canvas.getBoundingClientRect()
+    const px    = e.clientX - rect.left
+    const py    = e.clientY - rect.top
+    const cx    = this.W / 2, cy = this.H / 2
+    const scale = Math.min(this.W, this.H) * 0.27
+    const rx    = (px - cx) / scale
+    const ry    = (cy - py) / scale    // y flip
+    const r2    = rx * rx + ry * ry
+    // Project onto front hemisphere; clamp to equator if click outside circle
+    const nrm   = r2 > 1 ? Math.sqrt(r2) : 1
+    const nx    = rx / nrm, ny = ry / nrm
+    const nz    = r2 > 1 ? 0 : Math.sqrt(1 - r2)
+
+    // Camera → world: apply R^T where R = buildOrbitMat(theta, phi)
+    const R = buildOrbitMat(this.orbitTheta ?? -Math.PI / 4, this.orbitPhi ?? Math.PI / 6)
+    const v = [
+      R[0][0]*nx + R[1][0]*ny + R[2][0]*nz,
+      R[0][1]*nx + R[1][1]*ny + R[2][1]*nz,
+      R[0][2]*nx + R[1][2]*ny + R[2][2]*nz,
+    ]
+    this.onBaseVecPick(v)
+  }
+
   // ── 면 클릭 감지 ─────────────────────────────────────────────────────────
 
   _handleFaceClick(e) {
@@ -855,7 +949,10 @@ export class Visualizer {
       lastX = e.clientX; lastY = e.clientY
     }
     const onUp = e => {
-      if (mouseDown && !isDrag) this._handleFaceClick(e)
+      if (mouseDown && !isDrag) {
+        if (this.dim === 3 && this.onBaseVecPick) this._handleBasePick3D(e)
+        else                                       this._handleFaceClick(e)
+      }
       isDrag = false; mouseDown = false; canvas.style.cursor = 'grab'
     }
 

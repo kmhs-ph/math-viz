@@ -30,6 +30,8 @@ const btnUndo     = document.getElementById('btn-undo')
 const btnReset    = document.getElementById('btn-reset')
 const edgePalette = document.getElementById('edge-palette')
 const paletteBtns = edgePalette.querySelectorAll('.palette-btn')
+const infoBtn     = document.getElementById('info-btn')
+const infoTooltip = document.getElementById('info-tooltip')
 
 // ── 팔레트 초기화 ────────────────────────────────────────────────────────
 paletteBtns.forEach(btn => {
@@ -46,8 +48,17 @@ function resetPalette() {
 }
 
 function setPaletteVisible(irr) {
-  edgePalette.style.display = irr.dim >= 2 && !irr.vizMode ? 'flex' : 'none'
+  edgePalette.style.display = (irr.dim === 2 || irr.vizMode === 'simplex4D') ? 'flex' : 'none'
   resetPalette()
+}
+
+infoBtn.addEventListener('click', () => {
+  infoTooltip.style.display = infoTooltip.style.display === 'none' ? 'block' : 'none'
+})
+
+function updateInfoTooltip(irr) {
+  infoTooltip.innerHTML = irr.desc || '<p style="color:var(--text-muted)">No description available.</p>'
+  infoTooltip.style.display = 'none'
 }
 
 // ── 군 선택 목록 초기화 ───────────────────────────────────────────────────
@@ -79,66 +90,6 @@ function computeOrbit(irr, grp, baseVec = null) {
   return pts
 }
 
-// ── 3D Orbit Polytope Presets (hardcoded; vectors computed offline via scripts/orthogonalize.py) ──
-const PRESETS_3D = {
-  'A4:std': [
-    { name: 'default (e₁)',      v: null },
-    { name: 'Tetrahedron',       v: [ 0.754344479485, -0.577350269190, -0.312459714104] },
-    { name: 'Octahedron',        v: [ 0.382683432365,  0,              -0.923879532511] },
-    { name: 'Trunc. tetrahedron',v: [ 0.640165191422, -0.325057583672, -0.696079086734] },
-    { name: 'Cuboctahedron',     v: [ 0.270598050073,  0.707106781187, -0.653281482438] },
-    { name: 'Icosahedron-type',  v: [ 0.656463370983,  0.244016935856, -0.713800796843] },
-  ],
-  'S4:std⊗sgn': [
-    { name: 'default (e₁)',         v: null },
-    { name: 'Octahedron',           v: [-0.923879532511,  0,               0.382683432365] },
-    { name: 'Cube',                 v: [ 0.312459714104,  0.577350269190, -0.754344479485] },
-    { name: 'Cuboctahedron',        v: [ 0.653281482438, -0.707106781187, -0.270598050073] },
-    { name: 'Rhombicuboctahedron',  v: [-0.665019248073,  0.627963030200, -0.404242294169] },
-    { name: 'Trunc. octahedron',    v: [-0.353553390593, -0.923879532511,  0.146446609407] },
-    { name: 'Trunc. cube',          v: [ 0.682882148946, -0.091751709536, -0.724743812977] },
-    { name: 'Snub cube',            v: [ 0.063757984406, -0.197627444108, -0.978201570618] },
-  ],
-  'A5:3D': [
-    { name: 'default (e₁)',       v: null },
-    { name: 'Icosahedron',        v: [ 0,               0.525731112119,  0.850650808352] },
-    { name: 'Dodecahedron',       v: [ 0.577350269190,  0.577350269190,  0.577350269190] },
-    { name: 'Icosidodecahedron',  v: [ 0.309016994375,  0.809016994375,  0.5           ] },
-    { name: 'Trunc. icosahedron', v: [ 0.304743149777,  0.582240127941,  0.753742692223] },
-    { name: 'Trunc. dodecahedron',v: [ 0.160622035640,  0.693780477560,  0.702046444776] },
-    { name: 'Rhombicosidodeca.',  v: [ 0.450662190865,  0.704880847956,  0.547765077300] },
-    { name: 'Snub dodecahedron',  v: [ 0.310310471660,  0.669411172106,  0.674978587688] },
-  ],
-  "A5:3D'": [
-    { name: 'default (e₁)',       v: null },
-    { name: 'Icosahedron',        v: [ 0,               0.850650808352, -0.525731112119] },
-    { name: 'Dodecahedron',       v: [ 0.577350269190,  0.577350269190,  0.577350269190] },
-    { name: 'Icosidodecahedron',  v: [ 0.809016994375,  0.309016994375, -0.5           ] },
-    { name: 'Trunc. icosahedron', v: [ 0.374619738551,  0.926573379918,  0.033493627972] },
-    { name: 'Trunc. dodecahedron',v: [ 0.463130780147,  0.663864736987, -0.587191188171] },
-    { name: 'Rhombicosidodeca.',  v: [ 0.841592476093,  0.538068114904,  0.046955382087] },
-    { name: 'Snub dodecahedron',  v: [ 0.611483055501,  0.766144113462, -0.197766706607] },
-  ],
-}
-
-function populatePresets(irr) {
-  const wrap = document.getElementById('preset-wrap')
-  const sel  = document.getElementById('preset-select')
-  if (irr.dim !== 3) { wrap.style.display = 'none'; return }
-  const key = `${state.groupKey}:${irr.name}`
-  const presets = PRESETS_3D[key]
-  if (!presets) { wrap.style.display = 'none'; return }
-  state._presets = presets
-  sel.innerHTML = ''
-  presets.forEach((p, i) => {
-    const opt = document.createElement('option')
-    opt.value = i; opt.textContent = p.name
-    sel.appendChild(opt)
-  })
-  sel.value = '0'
-  wrap.style.display = 'flex'
-}
-
 // ── 초기화 ────────────────────────────────────────────────────────────────
 function init() {
   group = GROUPS[state.groupKey]
@@ -160,8 +111,9 @@ function init() {
   viz = new Visualizer(mainCanvas)
   const orbitPts = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
   viz.init(irr.dim, orbitPts, irr.vizMode)
+  if (irr.dim === 3) viz.onBaseVecPick = v => viz.updateOrbit(computeOrbit(irr, group, v))
   setPaletteVisible(irr)
-  populatePresets(irr)
+  updateInfoTooltip(irr)
 
   updateVizHeader(irr)
   updateMatrix()
@@ -196,8 +148,9 @@ function selectIrrep(idx) {
   viz = new Visualizer(mainCanvas)
   const orbitPts2 = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
   viz.init(irr.dim, orbitPts2, irr.vizMode)
+  if (irr.dim === 3) viz.onBaseVecPick = v => viz.updateOrbit(computeOrbit(irr, group, v))
   setPaletteVisible(irr)
-  populatePresets(irr)
+  updateInfoTooltip(irr)
 
   updateVizHeader(irr)
   updateMatrix()
@@ -382,12 +335,6 @@ document.addEventListener('keydown', e => {
       viz.reproject()
     }
   }
-})
-
-document.getElementById('preset-select').addEventListener('change', e => {
-  const p = state._presets?.[+e.target.value]
-  if (!p || !viz) return
-  viz.updateOrbit(computeOrbit(irreps[state.irrepIdx], group, p.v))
 })
 
 // ── 시작 ─────────────────────────────────────────────────────────────────
