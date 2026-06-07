@@ -251,6 +251,31 @@ select:hover, select:focus { border-color: var(--accent); }
   background: var(--border);
 }
 
+/* ── 푸리에 급수 (fourier) ── */
+.fourier-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.fourier-panel {
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.fourier-panel canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* ── 유한군 표현론 (group-rep) ── */
 .gr-layout {
   display: flex;

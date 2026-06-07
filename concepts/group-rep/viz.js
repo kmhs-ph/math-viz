@@ -1094,8 +1094,7 @@ export class Visualizer {
     const onUp = e => {
       if (mouseDown && !isDrag) {
         if      (this.vizMode === 'simplex4D') this._handleEdgeClick(e)
-        else if (this.dim === 2)               this._handleFaceClick(e)
-        // dim===3: widget handles base vector; dim>=4 other: no click action
+        else if (this.dim === 2 || this.dim === 3) this._handleFaceClick(e)
       }
       isDrag = false; mouseDown = false; canvas.style.cursor = 'grab'
     }
