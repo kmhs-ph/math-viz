@@ -349,3 +349,147 @@ if __name__ == '__main__':
         print(f"    C{o}: {len(axes)} distinct, first = {np.round(axes[0], 8)}")
     presets_a5p = make_presets('A5', by_ord_a5p)
     print_presets_js("A5 3D'", presets_a5p)
+
+# ─── A5 4D: simplex vertex positions ─────────────────────────────────────────
+
+print()
+print('='*60)
+print('A5 4D — simplex vertex positions in orthogonalized basis')
+print('='*60)
+
+# Recompute P and Pinv for A5 4D
+r5, c5 = (1,2,3,4,0), (3,0,2,1,4)
+a5_gens = [r5, c5]
+a5_4d_raw_dict = {
+    sn_id(r5): [[-1,-1,-1,-1],[1,0,0,0],[0,1,0,0],[0,0,1,0]],
+    sn_id(c5): [[0,1,0,0],[0,0,0,1],[0,0,1,0],[1,0,0,0]],
+}
+all_mats_4d = bfs_matrices(a5_gens, a5_4d_raw_dict)
+print(f"|A5| from BFS = {len(all_mats_4d)}")
+G4d = sum(M.T @ M for M in all_mats_4d.values()) / len(all_mats_4d)
+eigenvalues_4d, V_4d = np.linalg.eigh(G4d)
+Pinv_4d = np.diag(np.sqrt(eigenvalues_4d)) @ V_4d.T
+
+# The 5 simplex vertices in the raw {fi = ei - e4} basis
+simplex_raw = np.array([
+    [ 4/5, -1/5, -1/5, -1/5],  # vertex 0
+    [-1/5,  4/5, -1/5, -1/5],  # vertex 1
+    [-1/5, -1/5,  4/5, -1/5],  # vertex 2
+    [-1/5, -1/5, -1/5,  4/5],  # vertex 3
+    [-1/5, -1/5, -1/5, -1/5],  # vertex 4
+])
+
+simplex_ortho = (Pinv_4d @ simplex_raw.T).T
+print('\nSimplex vertex 0 in orthogonalized basis:')
+print(' ', np.round(simplex_ortho[0], 10))
+
+# Verify: all pairs have equal distance
+dists = [np.linalg.norm(simplex_ortho[i] - simplex_ortho[j]) for i in range(5) for j in range(i+1,5)]
+print(f'Edge lengths (should be equal): min={min(dists):.6f}, max={max(dists):.6f}')
+
+# Verify: orbit of vertex 0 under A5 gives all 5 vertices
+a5_4d_ortho_dict = {k: v.tolist() for k, v in new_a5_4d.items()}
+orbit_v0 = set()
+for M in bfs_matrices(a5_gens, a5_4d_ortho_dict).values():
+    p = M @ simplex_ortho[0]
+    orbit_v0.add(tuple(np.round(p, 5)))
+print(f'Orbit size of vertex 0: {len(orbit_v0)} (should be 5)')
+
+print('\nJS: simplex base vector (v0 in orthogonalized 4D basis):')
+print('const A5_4D_SIMPLEX_V0 =', '[' + ', '.join(fmt(x) for x in simplex_ortho[0]) + ']')
+
+# ─── A5 5D: intertwiner C (5D rep → traceless symmetric 3×3 matrices) ────────
+
+print()
+print('='*60)
+print('A5 5D — intertwiner C')
+print('='*60)
+
+# 3D orthogonal matrices for A5 (already orthogonal, no change)
+sq5 = np.sqrt(5)
+a5_3d_gens = {
+    sn_id(r5): np.array([
+        [(-1+sq5)/4, -(1+sq5)/4,  0.5],
+        [ (1+sq5)/4,  0.5,        (-1+sq5)/4],
+        [-0.5,        (-1+sq5)/4,  (1+sq5)/4],
+    ]),
+    sn_id(c5): np.array([[0,0,1],[1,0,0],[0,1,0]], dtype=float),
+}
+
+a5_3d_all = bfs_matrices(a5_gens, {k: v.tolist() for k, v in a5_3d_gens.items()})
+print(f'A5 3D group order from BFS: {len(a5_3d_all)}')
+
+# ONB for traceless symmetric 3x3 matrices (Frobenius inner product)
+B_basis = [
+    np.array([[1,0,0],[0,-1,0],[0,0, 0]], dtype=float) / np.sqrt(2),
+    np.array([[1,0,0],[0, 1,0],[0,0,-2]], dtype=float) / np.sqrt(6),
+    np.array([[0,1,0],[1, 0,0],[0,0, 0]], dtype=float) / np.sqrt(2),
+    np.array([[0,0,1],[0, 0,0],[1,0, 0]], dtype=float) / np.sqrt(2),
+    np.array([[0,0,0],[0, 0,1],[0,1, 0]], dtype=float) / np.sqrt(2),
+]
+
+def l2_rep_matrix(R, basis):
+    n = len(basis)
+    M = np.zeros((n, n))
+    for i, Bi in enumerate(basis):
+        RBiRt = R @ Bi @ R.T
+        for j, Bj in enumerate(basis):
+            M[j, i] = np.sum(Bj * RBiRt)
+    return M
+
+# Compute l=2 rep matrices for all A5 elements
+a5_sym_all = {eid: l2_rep_matrix(R, B_basis) for eid, R in a5_3d_all.items()}
+
+# Verify: l=2 rep is a valid group homomorphism
+rho_sym_r = a5_sym_all[sn_id(r5)]
+rho_sym_c = a5_sym_all[sn_id(c5)]
+
+# Check r^5 = I
+r5pow5 = np.linalg.matrix_power(rho_sym_r, 5)
+print(f'rho_sym(r)^5 = I error: {np.max(np.abs(r5pow5 - np.eye(5))):.2e}')
+
+# 5D orthogonalized matrices
+a5_5d_ortho_dict = {k: v.tolist() for k, v in new_a5_5d.items()}
+a5_5d_all = bfs_matrices(a5_gens, a5_5d_ortho_dict)
+print(f'A5 5D group order from BFS: {len(a5_5d_all)}')
+
+# Find intertwiner C: rho_sym(g) @ C = C @ rho_5d(g) for all g
+# C = Σ_g rho_sym(g) @ Phi @ rho_5d(g)^T  (for random Phi)
+np.random.seed(42)
+Phi = np.random.randn(5, 5)
+C = sum(a5_sym_all[eid] @ Phi @ a5_5d_all[eid].T for eid in a5_5d_all) / 60
+
+# Normalize rows of C (or just normalize the whole thing)
+C_norm = C / np.linalg.norm(C, 'fro') * np.sqrt(5)
+print(f'C shape: {C.shape}')
+print(f'C rank: {np.linalg.matrix_rank(C)}')
+
+# Verify: C rho_5d(g) = rho_sym(g) C for all g
+max_err_C = max(
+    np.max(np.abs(C_norm @ a5_5d_all[eid] - a5_sym_all[eid] @ C_norm))
+    for eid in a5_5d_all
+)
+print(f'Intertwiner verification max error: {max_err_C:.2e}')
+
+# Cinv: map from traceless sym matrix coefficients → 5D vector
+# Q = Σ v_i (C_norm^{-1})_ij B_j ... actually:
+# C maps 5D vector → sym matrix coefficients
+# Q = Σ (C v)_i B_i
+# So given v, Q = Σ_i (C v)_i B_i
+
+# Check: for the identity element (v = e_1 = (1,0,0,0,0)), what is Q?
+v_test = np.zeros(5); v_test[0] = 1
+q_coeffs = C_norm @ v_test
+Q_test = sum(q_coeffs[i] * B_basis[i] for i in range(5))
+print(f'\nFor v=e1, Q =\n{np.round(Q_test, 6)}')
+print(f'tr(Q_test) = {np.trace(Q_test):.6f} (should be 0)')
+print(f'||Q_test||_F = {np.linalg.norm(Q_test, "fro"):.6f}')
+
+print('\nJS: intertwiner C matrix (C @ v = Q coefficients in B_basis):')
+print('const A5_5D_C = [')
+for row in C_norm:
+    print(' [' + ', '.join(fmt(x) for x in row) + '],')
+print(']')
+
+print('\nJS: B_basis matrices [[row coefficients as [diag, offdiag style]]]:')
+print('// B_basis = diag(1,-1,0)/sqrt(2), diag(1,1,-2)/sqrt(6), xy, xz, yz (each /sqrt(2))')

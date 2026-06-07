@@ -15,6 +15,16 @@ const C = {
 export const PALETTE_COLORS = [null, '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#c77dff']
 const PALETTE_FILLS  = [null, '#ff6b6b99', '#ffd93d99', '#6bcb7799', '#4d96ff99', '#c77dff99']
 
+// ── A5 5D 인터트위너: 5D 벡터 → traceless symmetric 3×3 계수 ──────────────
+// q = A5_5D_C @ v; Q = Σ qᵢBᵢ (Bᵢ: 표준 traceless symmetric basis)
+const A5_5D_C = [
+  [-0.3689399728,  0.4614645729,  0.6435705727,  0.4236221911,  0.2393635346],
+  [-0.3244184629,  0.3532431018, -0.2631442498, -0.5983493774,  0.5854101966],
+  [ 0.7841555589,  0.4699299346,  0.2953027605, -0.2776007849,  0           ],
+  [-0.1213152045, -0.5231536855,  0.6552620098, -0.5312480975,  0           ],
+  [ 0.3591916453, -0.4095678661,  0,             0.3213028555,  0.7745966692],
+]
+
 // ── 수학 헬퍼 ────────────────────────────────────────────────────────────────
 
 function smoothstep(t) { return t * t * (3 - 2 * t) }
@@ -128,6 +138,30 @@ function project3(P, v) {
     P[1].reduce((s, p, i) => s + p * v[i], 0),
     P[2].reduce((s, p, i) => s + p * v[i], 0),
   ]
+}
+
+// ── 구면 메시 ────────────────────────────────────────────────────────────────
+
+function buildSphereMesh(nLat, nLon) {
+  const sph = (lat, lon) => [
+    Math.sin(lat) * Math.cos(lon),
+    Math.sin(lat) * Math.sin(lon),
+    Math.cos(lat),
+  ]
+  const quads = []
+  for (let i = 0; i < nLat; i++) {
+    for (let j = 0; j < nLon; j++) {
+      const lat0 = (i       / nLat) * Math.PI
+      const lat1 = ((i + 1) / nLat) * Math.PI
+      const lon0 = (j       / nLon) * 2 * Math.PI
+      const lon1 = ((j + 1) / nLon) * 2 * Math.PI
+      quads.push({
+        verts: [sph(lat0,lon0), sph(lat0,lon1), sph(lat1,lon1), sph(lat1,lon0)],
+        cen:   sph((lat0+lat1)/2, (lon0+lon1)/2),
+      })
+    }
+  }
+  return quads
 }
 
 // ── 볼록 껍질 ────────────────────────────────────────────────────────────────
@@ -265,9 +299,11 @@ export class Visualizer {
     this._geodesicFn   = null
 
     this.dim        = 1
+    this.vizMode    = null
     this.orbitPts   = null
     this._poly2D    = null
     this._hull3D    = null
+    this._sphereMesh = null
     this.projection = null
 
     this.markedEdges  = new Map()   // 2D용
@@ -282,9 +318,11 @@ export class Visualizer {
     this._loop           = this._loop.bind(this)
   }
 
-  init(dim, orbitPts) {
-    this.dim      = dim
-    this.orbitPts = orbitPts
+  init(dim, orbitPts, vizMode = null) {
+    this.dim         = dim
+    this.vizMode     = vizMode
+    this.orbitPts    = orbitPts
+    this._sphereMesh = null
     this.markedEdges.clear()
     this.markedFaces.clear()
     this._screenEdges = []
@@ -292,10 +330,11 @@ export class Visualizer {
 
     if (dim === 2 && orbitPts) this._poly2D  = buildPoly2D(orbitPts)
     if (dim === 3 && orbitPts) this._hull3D  = buildHull3D(orbitPts)
-    if (dim >= 4 && orbitPts) {
+    if (dim >= 4 && orbitPts && !vizMode) {
       this.projection = randomProjection(dim)
       this._hullND    = buildHull3D(orbitPts.map(v => project3(this.projection, v)))
     }
+    if (vizMode === 'sphere5D') this._sphereMesh = buildSphereMesh(24, 48)
 
     const I = identityR(dim)
     this.currentMatrix = I; this.startMatrix = I; this.targetMatrix = I
@@ -331,7 +370,7 @@ export class Visualizer {
     this._geodesicFn  = null
 
     const dim = this.dim
-    if (dim < 2) return
+    if (dim < 2 || dim > 3) return
 
     const dStart  = dim === 2 ? det2(this.startMatrix)  : det3(this.startMatrix)
     const dTarget = dim === 2 ? det2(M)                  : det3(M)
@@ -360,7 +399,7 @@ export class Visualizer {
     if (!pts) return
     if (this.dim === 2) this._poly2D = buildPoly2D(pts)
     if (this.dim === 3) this._hull3D = buildHull3D(pts)
-    if (this.dim >= 4 && this.projection)
+    if (this.dim >= 4 && !this.vizMode && this.projection)
       this._hullND = buildHull3D(pts.map(v => project3(this.projection, v)))
     this.markedFaces.clear()
     this.markedEdges.clear()
@@ -403,10 +442,12 @@ export class Visualizer {
     this._screenEdges = []
     this._screenPolys = []
 
-    if      (this.dim === 1) this._draw1DR()
-    else if (this.dim === 2) this._drawPoly2D()
-    else if (this.dim === 3) this._drawPoly3D()
-    else                     this._drawND()
+    if      (this.dim === 1)                  this._draw1DR()
+    else if (this.dim === 2)                  this._drawPoly2D()
+    else if (this.dim === 3)                  this._drawPoly3D()
+    else if (this.vizMode === 'simplex4D')    this._drawSimplex4D()
+    else if (this.vizMode === 'sphere5D')     this._drawSphere5D()
+    else                                      this._drawND()
   }
 
   // ── 1D ────────────────────────────────────────────────────────────────────
@@ -551,6 +592,151 @@ export class Visualizer {
     ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
     ctx.fillText('Drag to rotate', 12, H - 10)
+  }
+
+  // ── A5 4D: 4-simplex Schlegel diagram ────────────────────────────────────
+
+  _drawSimplex4D() {
+    const { ctx, W, H } = this
+    if (!this.orbitPts || this.orbitPts.length < 5) return
+
+    const cx = W / 2, cy = H / 2
+    const scale = Math.min(W, H) * 0.38
+    const M  = this.currentMatrix
+    const th = this.orbitTheta ?? -Math.PI / 4
+    const ph = this.orbitPhi   ?? Math.PI / 6
+
+    // 4D matrix → perspective project to 3D (camera at w = d)
+    const d = 1.5  // simplex vertices have |w| ≤ 0.8 < 1.5
+    const applyM4  = v => M.map(row => row.reduce((s, c, k) => s + c * v[k], 0))
+    const proj4to3 = ([x, y, z, w]) => { const f = d / (d - w); return [x*f, y*f, z*f] }
+
+    const R      = buildOrbitMat(th, ph)
+    const applyR = ([x,y,z]) => [
+      R[0][0]*x+R[0][1]*y+R[0][2]*z,
+      R[1][0]*x+R[1][1]*y+R[1][2]*z,
+      R[2][0]*x+R[2][1]*y+R[2][2]*z,
+    ]
+    const toSc  = v => { const [rx,ry] = applyR(v); return [cx+rx*scale, cy-ry*scale] }
+    const depth = v => applyR(v)[2]
+
+    const verts4 = this.orbitPts.map(applyM4)
+    const verts3 = verts4.map(proj4to3)
+    const scrn   = verts3.map(toSc)
+    const deps   = verts3.map(depth)
+
+    const n = this.orbitPts.length
+
+    // Draw K₅ edges (all 10 pairs)
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dep = (deps[i] + deps[j]) / 2
+        ctx.beginPath()
+        ctx.moveTo(...scrn[i])
+        ctx.lineTo(...scrn[j])
+        ctx.strokeStyle = dep > 0 ? C.shapeLine : 'rgba(91,141,238,0.28)'
+        ctx.lineWidth   = dep > 0 ? 1.8 : 0.9
+        ctx.stroke()
+      }
+    }
+
+    // Draw vertices
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath()
+      ctx.arc(...scrn[i], deps[i] > 0 ? 5 : 3, 0, Math.PI * 2)
+      ctx.fillStyle = deps[i] > 0 ? C.accentHi : 'rgba(122,165,245,0.45)'
+      ctx.fill()
+    }
+
+    ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText('4-simplex Schlegel · Drag to rotate', 12, H - 10)
+  }
+
+  // ── A5 5D: S² coloring by f_Q(u) = u^T Q u ──────────────────────────────
+
+  _drawSphere5D() {
+    const { ctx, W, H } = this
+    if (!this._sphereMesh) return
+
+    const cx = W / 2, cy = H / 2
+    const scale = Math.min(W, H) * 0.32
+    const M  = this.currentMatrix
+    const th = this.orbitTheta ?? -Math.PI / 4
+    const ph = this.orbitPhi   ?? Math.PI / 6
+
+    // v = M @ e₁ = first column of M
+    const v = M.map(row => row[0])
+    const q = A5_5D_C.map(row => row.reduce((s, c, k) => s + c * v[k], 0))
+
+    // Reconstruct 3×3 traceless symmetric Q from coefficients
+    // Basis: B₀=diag(1,-1,0)/√2, B₁=diag(1,1,-2)/√6, B₂,₃,₄=off-diagonal/√2
+    const s2 = Math.SQRT2, s6 = Math.sqrt(6)
+    const Q = [
+      [ q[0]/s2 + q[1]/s6,   q[2]/s2,            q[3]/s2           ],
+      [ q[2]/s2,            -q[0]/s2 + q[1]/s6,   q[4]/s2           ],
+      [ q[3]/s2,             q[4]/s2,            -2*q[1]/s6         ],
+    ]
+
+    const fQ = u => (
+      Q[0][0]*u[0]*u[0] + Q[1][1]*u[1]*u[1] + Q[2][2]*u[2]*u[2] +
+      2*Q[0][1]*u[0]*u[1] + 2*Q[0][2]*u[0]*u[2] + 2*Q[1][2]*u[1]*u[2]
+    )
+
+    const R      = buildOrbitMat(th, ph)
+    const applyR = ([x,y,z]) => [
+      R[0][0]*x+R[0][1]*y+R[0][2]*z,
+      R[1][0]*x+R[1][1]*y+R[1][2]*z,
+      R[2][0]*x+R[2][1]*y+R[2][2]*z,
+    ]
+    const toSc  = v3 => { const [rx,ry] = applyR(v3); return [cx+rx*scale, cy-ry*scale] }
+    const depth = v3 => applyR(v3)[2]
+
+    // Sort quads back-to-front (Painter's algorithm)
+    const sorted = this._sphereMesh.map(q2 => ({
+      verts: q2.verts, f: fQ(q2.cen), depth: depth(q2.cen),
+    })).sort((a, b) => a.depth - b.depth)
+
+    for (const quad of sorted) {
+      const pts   = quad.verts.map(toSc)
+      const front = quad.depth > 0
+      const alpha = front ? 0.88 : 0.20
+      const t     = quad.f     // C is close-to-orthogonal so ||q||≈1 → |fQ| ≤ 1
+
+      ctx.beginPath()
+      ctx.moveTo(...pts[0])
+      pts.slice(1).forEach(p => ctx.lineTo(...p))
+      ctx.closePath()
+
+      if (Math.abs(t) < 0.04) {
+        // Nodal curve region
+        ctx.fillStyle = `rgba(20,20,45,${alpha * 0.8})`
+      } else if (t > 0) {
+        const i = Math.min(1, (t - 0.04) / 0.96)
+        ctx.fillStyle = `rgba(77,150,255,${(i * 0.78 + 0.10) * alpha})`
+      } else {
+        const i = Math.min(1, (-t - 0.04) / 0.96)
+        ctx.fillStyle = `rgba(255,107,107,${(i * 0.78 + 0.10) * alpha})`
+      }
+      ctx.fill()
+    }
+
+    // Coordinate axes
+    const AX = 1.38, axCols = [C.vec1, C.vec2, C.vec3], axNames = ['x', 'y', 'z']
+    for (let i = 0; i < 3; i++) {
+      const tip = [0,0,0]; tip[i] = AX
+      drawArrow(ctx, cx, cy, ...toSc(tip), axCols[i], 9)
+      const lp = [0,0,0]; lp[i] = AX + 0.22
+      const [lx, ly] = toSc(lp)
+      ctx.fillStyle = axCols[i]; ctx.font = '12px var(--font-mono,monospace)'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(axNames[i], lx, ly)
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2)
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill()
+
+    ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText('fᵂ(u)=uᵀQu  [■ +blue ■ −red ■ 0=nodal] · Drag to rotate', 12, H - 10)
   }
 
   // ── nD → 2D 투영 ──────────────────────────────────────────────────────────

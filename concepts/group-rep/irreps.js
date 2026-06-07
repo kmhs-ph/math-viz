@@ -22,7 +22,7 @@ const _c2  = _c8 * _c8
 
 // ─── Irrep 팩토리 ─────────────────────────────────────────────────────────────
 
-function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices }) {
+function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices, vizMode = null, baseVec = null }) {
   const cache = new Map()
 
   function getMatrix(group, element) {
@@ -61,7 +61,7 @@ function buildIrrep({ name, dim, field = 'R', charLabel, genMatrices }) {
     return I
   }
 
-  return { name, dim, field: 'R', charLabel: charLabel || name, genMatrices, getMatrix }
+  return { name, dim, field: 'R', charLabel: charLabel || name, genMatrices, getMatrix, vizMode, baseVec }
 }
 
 // ─── D_n irrep ────────────────────────────────────────────────────────────
@@ -218,9 +218,11 @@ function a5Irreps() {
       },
     }),
 
-    // 4D: pre-orthogonalized permutation restriction
+    // 4D: pre-orthogonalized permutation restriction; Schlegel diagram of 4-simplex
     buildIrrep({
       name: '4D', dim: 4, charLabel: 'χ₄',
+      vizMode: 'simplex4D',
+      baseVec: [0, 0.3512872587, -0.6903602407, 0.2],
       genMatrices: {
         [rId]: [
           [-0.5,              -0.771846213546, -0.392751095015,  0],
@@ -237,9 +239,10 @@ function a5Irreps() {
       },
     }),
 
-    // 5D: pre-orthogonalized augmented permutation restriction
+    // 5D: l=2 spherical harmonic rep; visualized as f_Q coloring on S²
     buildIrrep({
       name: '5D', dim: 5, charLabel: 'χ₅',
+      vizMode: 'sphere5D',
       genMatrices: {
         [rId]: [
           [-0.135895036780, -0.475003884690,  0.598587758455,  0.522563416325,  0.352879610994],

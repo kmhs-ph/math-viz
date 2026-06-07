@@ -45,8 +45,8 @@ function resetPalette() {
   if (viz) viz.paletteIdx = 0
 }
 
-function setPaletteVisible(dim) {
-  edgePalette.style.display = dim >= 2 ? 'flex' : 'none'
+function setPaletteVisible(irr) {
+  edgePalette.style.display = irr.dim >= 2 && !irr.vizMode ? 'flex' : 'none'
   resetPalette()
 }
 
@@ -158,8 +158,9 @@ function init() {
 
   if (viz) viz.destroy()
   viz = new Visualizer(mainCanvas)
-  viz.init(irr.dim, computeOrbit(irr, group))
-  setPaletteVisible(irr.dim)
+  const orbitPts = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
+  viz.init(irr.dim, orbitPts, irr.vizMode)
+  setPaletteVisible(irr)
   populatePresets(irr)
 
   updateVizHeader(irr)
@@ -193,8 +194,9 @@ function selectIrrep(idx) {
 
   if (viz) viz.destroy()
   viz = new Visualizer(mainCanvas)
-  viz.init(irr.dim, computeOrbit(irr, group))
-  setPaletteVisible(irr.dim)
+  const orbitPts2 = irr.vizMode === 'sphere5D' ? null : computeOrbit(irr, group, irr.baseVec ?? null)
+  viz.init(irr.dim, orbitPts2, irr.vizMode)
+  setPaletteVisible(irr)
   populatePresets(irr)
 
   updateVizHeader(irr)
