@@ -343,7 +343,7 @@ a { color: inherit; text-decoration: none; }
 .site-footer {
   background: var(--bg);
   border-top: 1px solid var(--border);
-  padding: 48px 0;
+  padding: 24px 0;
   position: relative;
   z-index: 1;
 }
@@ -353,37 +353,17 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto;
   padding: 0 40px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 24px;
+  justify-content: flex-end;
 }
 
-.site-footer__brand {
-  display: block;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-
-.site-footer__inner p {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.site-footer__links {
-  display: flex;
-  gap: 32px;
-}
-
-.site-footer__links a {
+.site-footer__github {
   font-size: 0.82rem;
+  font-family: var(--font-mono);
   color: var(--text-muted);
   transition: color 0.15s;
 }
 
-.site-footer__links a:hover { color: var(--secondary); }
+.site-footer__github:hover { color: var(--secondary); }
 
 /* ── 개념 페이지 공통 레이아웃 ── */
 
@@ -516,6 +496,121 @@ select:hover, select:focus { border-color: var(--accent); }
   background: var(--border);
 }
 
+/* ── 푸리에 급수 사이드바 레이아웃 ─────────────────────────────────────────── */
+
+.fourier-layout {
+  flex-direction: row;
+}
+
+.fourier-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: rgba(22, 22, 26, 0.70);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid var(--border);
+}
+
+.fourier-sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fourier-sidebar__icon {
+  font-size: 1rem;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.fourier-sidebar__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fourier-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.fourier-controls .ctrl-group {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 5px 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.fourier-controls .ctrl-group .ctrl-label {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+.fourier-controls .ctrl-group .ctrl-value {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.fourier-controls .ctrl-group input[type='range'] {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+
+.fourier-controls .ctrl-group select {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+
+/* kernel group는 그리드 2번째 행에 full-width로 */
+.fourier-controls .ctrl-group > div {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.fourier-controls .fourier-kernel-group {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fourier-controls .fourier-kernel-btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 5px 8px;
+}
+
+.fourier-controls .divider {
+  width: 100%;
+  height: 1px;
+  margin: 2px 0;
+}
+
+.fourier-canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
 /* ── 푸리에 급수 (fourier) ── */
 
 .fourier-grid {
@@ -530,7 +625,7 @@ select:hover, select:focus { border-color: var(--accent); }
 }
 
 .fourier-panel {
-  background: var(--bg);
+  background: radial-gradient(ellipse at center, #1a1a2e 0%, #131315 100%);
   position: relative;
   overflow: hidden;
   min-height: 0;
@@ -682,7 +777,6 @@ select:hover, select:focus { border-color: var(--accent); }
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
-  background: var(--bg);
 }
 
 .gr-viz-header {
@@ -715,6 +809,7 @@ select:hover, select:focus { border-color: var(--accent); }
   position: relative;
   overflow: hidden;
   min-height: 0;
+  background: radial-gradient(ellipse at 55% 45%, #1a1a2e 0%, #131315 100%);
 }
 
 .gr-canvas-wrap canvas {

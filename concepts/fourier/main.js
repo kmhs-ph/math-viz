@@ -74,6 +74,8 @@ const KN = {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
+const MAX_N = 50
+
 const state = {
   wf: 'square', kn: 'identity', N: 20, param: 1,
   c: [],
@@ -83,23 +85,20 @@ const state = {
 
 function resetCoeffs() {
   if (state.wf === 'custom') return
-  const wf = WF[state.wf], N = state.N
-  state.c = Array.from({length: N+1}, (_, n) => n === 0 ? C(0, 0) : wf.c(n))
-  state.baseMax = Math.max(0.2, ...state.c.map(cmag)) * 1.5
+  const wf = WF[state.wf]
+  // Always fill the full MAX_N range so N reductions don't discard values
+  state.c = Array.from({length: MAX_N+1}, (_, n) => n === 0 ? C(0, 0) : wf.c(n))
+  state.baseMax = Math.max(0.2, ...state.c.slice(0, state.N+1).map(cmag)) * 1.5
 }
 
 function resizeCoeffs(oldN) {
   const N = state.N
+  // Never truncate; c always has MAX_N+1 entries after resetCoeffs.
+  // When N grows, widen baseMax to account for newly visible bars.
   if (N > oldN) {
-    const wf = WF[state.wf]
-    for (let n = oldN + 1; n <= N; n++) {
-      state.c.push(state.wf === 'custom' ? C(0, 0) : wf.c(n))
-    }
-    state.baseMax = Math.max(state.baseMax, ...state.c.map(cmag))
-  } else {
-    state.c.length = N + 1
-    if (state.selectedN !== null && state.selectedN > N) state.selectedN = null
+    state.baseMax = Math.max(state.baseMax, ...state.c.slice(oldN+1, N+1).map(cmag))
   }
+  if (state.selectedN !== null && state.selectedN > N) state.selectedN = null
 }
 
 let hoverKn = null

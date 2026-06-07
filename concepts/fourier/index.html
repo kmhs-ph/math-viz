@@ -20,14 +20,24 @@
     </div>
   </nav>
 
-  <div class="concept-page">
-    <div class="fourier-grid">
-      <div class="fourier-panel"><canvas id="canvas-tl"></canvas></div>
-      <div class="fourier-panel" style="grid-column:2;grid-row:1/3"><canvas id="canvas-r"></canvas></div>
-      <div class="fourier-panel"><canvas id="canvas-bl"></canvas></div>
+  <div class="concept-page fourier-layout">
+
+    <aside class="fourier-sidebar">
+      <div class="fourier-sidebar__header">
+        <span class="fourier-sidebar__icon">◈</span>
+        <h2 class="fourier-sidebar__title">Wave Config</h2>
+      </div>
+      <div id="controls" class="fourier-controls"></div>
+    </aside>
+
+    <div class="fourier-canvas-area">
+      <div class="fourier-grid">
+        <div class="fourier-panel"><canvas id="canvas-tl"></canvas></div>
+        <div class="fourier-panel" style="grid-column:2;grid-row:1/3"><canvas id="canvas-r"></canvas></div>
+        <div class="fourier-panel"><canvas id="canvas-bl"></canvas></div>
+      </div>
     </div>
 
-    <div class="concept-controls" id="controls"></div>
   </div>
 
   <script type="module" src="./main.js"></script>
