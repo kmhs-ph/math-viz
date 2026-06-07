@@ -1,6 +1,6 @@
 import { GROUPS } from './groups.js'
 import { getIrreps, characterTable } from './irreps.js'
-import { Visualizer, randomProjection } from './viz.js'
+import { Visualizer } from './viz.js'
 
 // ── 상태 ──────────────────────────────────────────────────────────────────
 const state = {
@@ -315,7 +315,7 @@ btnReset.addEventListener('click', () => {
 document.addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') {
     if (viz && irreps[state.irrepIdx]?.dim >= 4) {
-      viz.projection = randomProjection(irreps[state.irrepIdx].dim)
+      viz.reproject()
     }
   }
 })

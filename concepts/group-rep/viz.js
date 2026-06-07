@@ -102,26 +102,31 @@ function so3Geodesic(start, target) {
   }
 }
 
-// ── 랜덤 투영 (dim≥4 fallback) ──────────────────────────────────────────────
+// ── 랜덤 투영 ────────────────────────────────────────────────────────────────
 
+// nD → 3D: Gram-Schmidt 직교화로 3×dim 투영행렬 생성
 export function randomProjection(dim) {
-  const dot  = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0)
+  const dot   = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0)
   const scale = (a, k) => a.map(v => v * k)
   const sub   = (a, b) => a.map((v, i) => v - b[i])
-  const rows  = [
-    Array.from({ length: dim }, () => Math.random() - 0.5),
-    Array.from({ length: dim }, () => Math.random() - 0.5),
-  ]
+  const rows = Array.from({ length: 3 }, () =>
+    Array.from({ length: dim }, () => Math.random() - 0.5)
+  )
   rows[0] = scale(rows[0], 1 / Math.sqrt(dot(rows[0], rows[0])))
   rows[1] = sub(rows[1], scale(rows[0], dot(rows[1], rows[0])))
   rows[1] = scale(rows[1], 1 / Math.sqrt(dot(rows[1], rows[1])))
+  rows[2] = sub(rows[2], scale(rows[0], dot(rows[2], rows[0])))
+  rows[2] = sub(rows[2], scale(rows[1], dot(rows[2], rows[1])))
+  rows[2] = scale(rows[2], 1 / Math.sqrt(dot(rows[2], rows[2])))
   return rows
 }
 
-export function project(P, v) {
+// nD 벡터를 3D로 투영
+function project3(P, v) {
   return [
     P[0].reduce((s, p, i) => s + p * v[i], 0),
     P[1].reduce((s, p, i) => s + p * v[i], 0),
+    P[2].reduce((s, p, i) => s + p * v[i], 0),
   ]
 }
 
@@ -287,7 +292,10 @@ export class Visualizer {
 
     if (dim === 2 && orbitPts) this._poly2D  = buildPoly2D(orbitPts)
     if (dim === 3 && orbitPts) this._hull3D  = buildHull3D(orbitPts)
-    if (dim >= 4)               this.projection = randomProjection(dim)
+    if (dim >= 4 && orbitPts) {
+      this.projection = randomProjection(dim)
+      this._hullND    = buildHull3D(orbitPts.map(v => project3(this.projection, v)))
+    }
 
     const I = identityR(dim)
     this.currentMatrix = I; this.startMatrix = I; this.targetMatrix = I
@@ -303,7 +311,7 @@ export class Visualizer {
       this.canvas.addEventListener('click', this._clickHandler)
     }
 
-    if (dim === 3) {
+    if (dim >= 3) {
       this.orbitTheta = -Math.PI / 4
       this.orbitPhi   = Math.PI / 6
       this._setupOrbit()
@@ -338,6 +346,13 @@ export class Visualizer {
 
   reset() {
     this.setTarget(identityR(this.dim))
+  }
+
+  reproject() {
+    if (this.dim < 4 || !this.orbitPts) return
+    this.projection = randomProjection(this.dim)
+    this._hullND    = buildHull3D(this.orbitPts.map(v => project3(this.projection, v)))
+    this.markedFaces.clear()
   }
 
   _resize() {
@@ -530,32 +545,62 @@ export class Visualizer {
   // ── nD → 2D 투영 ──────────────────────────────────────────────────────────
 
   _drawND() {
-    const { ctx, W, H, dim, projection: P } = this
-    if (!P) return
-    const cx = W/2, cy = H/2
-    const unit = Math.min(W,H) * 0.14
+    const { ctx, W, H, dim } = this
+    if (!this._hullND || !this.orbitPts || !this.projection) return
+    const cx = W / 2, cy = H / 2
+    const scale = Math.min(W, H) * 0.27
     const M = this.currentMatrix
-    const applyM = v => v.map((_,i) => M[i].reduce((s,m,j)=>s+m*v[j],0))
-    const projBases = Array.from({length:dim},(_,j)=>{
-      const ej=Array(dim).fill(0); ej[j]=1; return project(P, applyM(ej))
-    })
-    const toSc = ([x,y]) => [cx+x*unit, cy-y*unit]
-    const b1=projBases[0], b2=projBases[1]||[0,0]
-    const RANGE=3
-    for (let i=-RANGE;i<=RANGE;i++) {
-      ctx.beginPath()
-      ctx.moveTo(...toSc([i*b1[0]+(-RANGE)*b2[0], i*b1[1]+(-RANGE)*b2[1]]))
-      ctx.lineTo(...toSc([i*b1[0]+RANGE*b2[0], i*b1[1]+RANGE*b2[1]]))
-      ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1; ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(...toSc([(-RANGE)*b1[0]+i*b2[0], (-RANGE)*b1[1]+i*b2[1]]))
-      ctx.lineTo(...toSc([RANGE*b1[0]+i*b2[0], RANGE*b1[1]+i*b2[1]]))
-      ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1; ctx.stroke()
+    const P = this.projection
+    const th = this.orbitTheta ?? -Math.PI / 4
+    const ph = this.orbitPhi   ?? Math.PI / 6
+
+    // nD → 3D: 현재 행렬 적용 후 투영
+    const applyM  = v => M.map(row => row.reduce((s, c, k) => s + c * v[k], 0))
+    const toWorld = v => project3(P, applyM(v))
+
+    const R = buildOrbitMat(th, ph)
+    const applyR = ([x,y,z]) => [
+      R[0][0]*x+R[0][1]*y+R[0][2]*z,
+      R[1][0]*x+R[1][1]*y+R[1][2]*z,
+      R[2][0]*x+R[2][1]*y+R[2][2]*z,
+    ]
+    const proj2  = v => { const [rx,ry] = applyR(v); return [cx+rx*scale, cy-ry*scale] }
+    const pdepth = v => applyR(v)[2]
+
+    const { polygons, edges } = this._hullND
+    const wPts = this.orbitPts.map(toWorld)
+    const sPts = wPts.map(proj2)
+
+    // 면 — 깊이 정렬 후 Painter's algorithm
+    const sortedPolys = polygons
+      .map((poly, idx) => ({
+        poly, idx,
+        depth: poly.verts.reduce((s,i)=>s+pdepth(wPts[i]),0)/poly.verts.length
+      }))
+      .sort((a,b) => a.depth - b.depth)
+
+    for (const { poly, idx } of sortedPolys) {
+      const fPts = poly.verts.map(i => sPts[i])
+      ctx.beginPath(); ctx.moveTo(...fPts[0])
+      fPts.slice(1).forEach(p => ctx.lineTo(...p))
+      ctx.closePath()
+      const mc = this.markedFaces.get(idx)
+      ctx.fillStyle = mc ? PALETTE_FILLS[mc] : C.shape; ctx.fill()
+      this._screenPolys.push({ idx, pts: fPts })
     }
-    const cols=[C.vec1,C.vec2,C.vec3,'#e0c05c','#c05ce0']
-    projBases.forEach((b,j)=>{ const[bx,by]=toSc(b); drawArrow(ctx,cx,cy,bx,by,cols[j%cols.length],8) })
-    ctx.fillStyle=C.text; ctx.font='11px var(--font-mono,monospace)'
-    ctx.textAlign='right'; ctx.fillText(`${dim}D → 2D projection`, W-12, H-10)
+
+    // 에지 — 깊이로 굵기 구분
+    for (const { a, b } of edges) {
+      const depth = (pdepth(wPts[a]) + pdepth(wPts[b])) / 2
+      ctx.beginPath(); ctx.moveTo(...sPts[a]); ctx.lineTo(...sPts[b])
+      ctx.strokeStyle = depth > 0 ? C.shapeLine : 'rgba(91,141,238,0.30)'
+      ctx.lineWidth   = depth > 0 ? 1.4 : 0.7
+      ctx.stroke()
+    }
+
+    ctx.fillStyle = C.text; ctx.font = '11px var(--font-sans,sans-serif)'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText(`${dim}D → 3D  [P] new projection`, 12, H - 10)
   }
 
   // ── 면 클릭 감지 ─────────────────────────────────────────────────────────
