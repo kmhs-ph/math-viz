@@ -7,14 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/main-D69l2hTZ.js"></script>
-  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-CW3khfjS.js">
-  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-B13Qr5BT.css">
+  <script type="module" crossorigin src="/math-viz/assets/main-BBIWx--M.js"></script>
+  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-C34hBroU.js">
+  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-DatqLYv8.css">
 </head>
 <body>
-
-  <div id="hero-glow" class="hero-glow"></div>
-  <div id="particle-container" class="particle-container"></div>
 
   <nav class="site-nav">
     <a class="site-nav__brand" href="./">Math Visualizations</a>
@@ -37,31 +34,5 @@
     </div>
   </footer>
 
-  <script>
-    const glow = document.getElementById('hero-glow')
-    window.addEventListener('mousemove', e => {
-      glow.style.left = e.clientX + 'px'
-      glow.style.top  = e.clientY + 'px'
-    })
-
-    const container = document.getElementById('particle-container')
-    for (let i = 0; i < 20; i++) {
-      const dot = document.createElement('div')
-      dot.className = 'particle'
-      const size = Math.random() * 3 + 1
-      dot.style.width  = size + 'px'
-      dot.style.height = size + 'px'
-      dot.style.left   = (Math.random() * 100) + '%'
-      dot.style.top    = (Math.random() * 100) + '%'
-      const dur   = (Math.random() * 10 + 10) * 1000
-      const delay = Math.random() * -20 * 1000
-      dot.animate([
-        { transform: 'translate(0,0)', opacity: 0.1 },
-        { transform: `translate(${Math.random()*200-100}px,${Math.random()*200-100}px)`, opacity: 0.3 },
-        { transform: 'translate(0,0)', opacity: 0.1 },
-      ], { duration: dur, iterations: Infinity, delay, easing: 'ease-in-out' })
-      container.appendChild(dot)
-    }
-  </script>
 </body>
 </html>
