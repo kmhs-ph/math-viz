@@ -50,7 +50,7 @@ function resetPalette() {
 }
 
 function setPaletteVisible(irr) {
-  edgePalette.style.display = (irr.dim === 2 || irr.vizMode === 'simplex4D') ? 'flex' : 'none'
+  edgePalette.style.display = (irr.dim === 2 || irr.dim === 3 || irr.vizMode === 'simplex4D') ? 'flex' : 'none'
   resetPalette()
 }
 
