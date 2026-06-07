@@ -79,93 +79,58 @@ function computeOrbit(irr, grp, baseVec = null) {
   return pts
 }
 
-// ── Preset 계산 헬퍼 ────────────────────────────────────────────────────────
-function rotOrder3(M) {
-  const tr = M[0][0] + M[1][1] + M[2][2]
-  const φ  = (1 + Math.sqrt(5)) / 2
-  if (tr > 2.9)  return 1
-  if (Math.abs(tr + 1)   < 0.15) return 2
-  if (Math.abs(tr)       < 0.15) return 3
-  if (Math.abs(tr - 1)   < 0.15) return 4
-  if (Math.abs(tr - φ)   < 0.15 || Math.abs(tr - (1 - φ)) < 0.15) return 5
-  return 0
-}
-
-function rotAxis3(M, ord) {
-  const n = v => { const l = Math.hypot(...v); return l > 1e-9 ? v.map(x => x / l) : v }
-  if (ord === 2) {
-    for (let i = 0; i < 3; i++) {
-      const r = [M[i][0] + (i===0?1:0), M[i][1] + (i===1?1:0), M[i][2] + (i===2?1:0)]
-      if (Math.hypot(...r) > 0.01) return n(r)
-    }
-  }
-  return n([M[2][1] - M[1][2], M[0][2] - M[2][0], M[1][0] - M[0][1]])
-}
-
-function matDet3(M) {
-  return M[0][0] * (M[1][1]*M[2][2] - M[1][2]*M[2][1])
-       - M[0][1] * (M[1][0]*M[2][2] - M[1][2]*M[2][0])
-       + M[0][2] * (M[1][0]*M[2][1] - M[1][1]*M[2][0])
-}
-
-function collectAxes(grp, irr) {
-  const byOrd = {}
-  const dot3  = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0)
-  for (const elem of grp.elements) {
-    const M = irr.getMatrix(grp, elem)
-    if (Math.abs(matDet3(M) - 1) > 0.15) continue
-    const ord = rotOrder3(M)
-    if (ord <= 1) continue
-    const ax = rotAxis3(M, ord)
-    if (!byOrd[ord]) byOrd[ord] = []
-    if (byOrd[ord].every(a => Math.abs(dot3(a, ax)) < 0.99))
-      byOrd[ord].push(ax)
-  }
-  return byOrd
-}
-
-function make3DPresets(groupKey, byOrd) {
-  const norm = v => { const l = Math.hypot(...v); return v.map(x => x / l) }
-  const add  = (a, b) => a.map((x, i) => x + b[i])
-  const u    = (k, i = 0) => byOrd[k]?.[i]
-  const has  = (...ks) => ks.every(k => byOrd[k]?.length > 0)
-
-  const ps = [{ name: 'default (e₁)', v: null }]
-  if (groupKey === 'A4' && has(3, 2)) {
-    ps.push({ name: 'Tetrahedron',         v: u(3) })
-    ps.push({ name: 'Octahedron',          v: u(2) })
-    ps.push({ name: 'Trunc. tetrahedron',  v: norm(add(u(3), u(2))) })
-    if (byOrd[2].length >= 2)
-      ps.push({ name: 'Cuboctahedron',     v: norm(add(u(2, 0), u(2, 1))) })
-    ps.push({ name: 'Icosahedron-type',    v: norm(add(add(u(3), u(2, 0)), u(2, 1) ?? u(2))) })
-  } else if (groupKey === 'S4' && has(4, 3, 2)) {
-    ps.push({ name: 'Octahedron',          v: u(4) })
-    ps.push({ name: 'Cube',               v: u(3) })
-    ps.push({ name: 'Cuboctahedron',       v: u(2) })
-    ps.push({ name: 'Rhombicuboctahedron', v: norm(add(u(4), u(3))) })
-    ps.push({ name: 'Trunc. octahedron',   v: norm(add(u(4), u(2))) })
-    ps.push({ name: 'Trunc. cube',         v: norm(add(u(3), u(2))) })
-    ps.push({ name: 'Snub cube',           v: norm(add(add(u(4), u(3)), u(2))) })
-  } else if (groupKey === 'A5' && has(5, 3, 2)) {
-    ps.push({ name: 'Icosahedron',           v: u(5) })
-    ps.push({ name: 'Dodecahedron',          v: u(3) })
-    ps.push({ name: 'Icosidodecahedron',     v: u(2) })
-    ps.push({ name: 'Trunc. icosahedron',    v: norm(add(u(5), u(3))) })
-    ps.push({ name: 'Trunc. dodecahedron',   v: norm(add(u(5), u(2))) })
-    ps.push({ name: 'Rhombicosidodeca.',     v: norm(add(u(3), u(2))) })
-    ps.push({ name: 'Snub dodecahedron',     v: norm(add(add(u(5), u(3)), u(2))) })
-  }
-  return ps
+// ── 3D Orbit Polytope Presets (hardcoded; vectors computed offline via scripts/orthogonalize.py) ──
+const PRESETS_3D = {
+  'A4:std': [
+    { name: 'default (e₁)',      v: null },
+    { name: 'Tetrahedron',       v: [ 0.754344479485, -0.577350269190, -0.312459714104] },
+    { name: 'Octahedron',        v: [ 0.382683432365,  0,              -0.923879532511] },
+    { name: 'Trunc. tetrahedron',v: [ 0.640165191422, -0.325057583672, -0.696079086734] },
+    { name: 'Cuboctahedron',     v: [ 0.270598050073,  0.707106781187, -0.653281482438] },
+    { name: 'Icosahedron-type',  v: [ 0.656463370983,  0.244016935856, -0.713800796843] },
+  ],
+  'S4:std⊗sgn': [
+    { name: 'default (e₁)',         v: null },
+    { name: 'Octahedron',           v: [-0.923879532511,  0,               0.382683432365] },
+    { name: 'Cube',                 v: [ 0.312459714104,  0.577350269190, -0.754344479485] },
+    { name: 'Cuboctahedron',        v: [ 0.653281482438, -0.707106781187, -0.270598050073] },
+    { name: 'Rhombicuboctahedron',  v: [-0.665019248073,  0.627963030200, -0.404242294169] },
+    { name: 'Trunc. octahedron',    v: [-0.353553390593, -0.923879532511,  0.146446609407] },
+    { name: 'Trunc. cube',          v: [ 0.682882148946, -0.091751709536, -0.724743812977] },
+    { name: 'Snub cube',            v: [ 0.063757984406, -0.197627444108, -0.978201570618] },
+  ],
+  'A5:3D': [
+    { name: 'default (e₁)',       v: null },
+    { name: 'Icosahedron',        v: [ 0,               0.525731112119,  0.850650808352] },
+    { name: 'Dodecahedron',       v: [ 0.577350269190,  0.577350269190,  0.577350269190] },
+    { name: 'Icosidodecahedron',  v: [ 0.309016994375,  0.809016994375,  0.5           ] },
+    { name: 'Trunc. icosahedron', v: [ 0.304743149777,  0.582240127941,  0.753742692223] },
+    { name: 'Trunc. dodecahedron',v: [ 0.160622035640,  0.693780477560,  0.702046444776] },
+    { name: 'Rhombicosidodeca.',  v: [ 0.450662190865,  0.704880847956,  0.547765077300] },
+    { name: 'Snub dodecahedron',  v: [ 0.310310471660,  0.669411172106,  0.674978587688] },
+  ],
+  "A5:3D'": [
+    { name: 'default (e₁)',       v: null },
+    { name: 'Icosahedron',        v: [ 0,               0.850650808352, -0.525731112119] },
+    { name: 'Dodecahedron',       v: [ 0.577350269190,  0.577350269190,  0.577350269190] },
+    { name: 'Icosidodecahedron',  v: [ 0.809016994375,  0.309016994375, -0.5           ] },
+    { name: 'Trunc. icosahedron', v: [ 0.374619738551,  0.926573379918,  0.033493627972] },
+    { name: 'Trunc. dodecahedron',v: [ 0.463130780147,  0.663864736987, -0.587191188171] },
+    { name: 'Rhombicosidodeca.',  v: [ 0.841592476093,  0.538068114904,  0.046955382087] },
+    { name: 'Snub dodecahedron',  v: [ 0.611483055501,  0.766144113462, -0.197766706607] },
+  ],
 }
 
 function populatePresets(irr) {
   const wrap = document.getElementById('preset-wrap')
   const sel  = document.getElementById('preset-select')
   if (irr.dim !== 3) { wrap.style.display = 'none'; return }
-  const byOrd = collectAxes(group, irr)
-  state._presets = make3DPresets(state.groupKey, byOrd)
+  const key = `${state.groupKey}:${irr.name}`
+  const presets = PRESETS_3D[key]
+  if (!presets) { wrap.style.display = 'none'; return }
+  state._presets = presets
   sel.innerHTML = ''
-  state._presets.forEach((p, i) => {
+  presets.forEach((p, i) => {
     const opt = document.createElement('option')
     opt.value = i; opt.textContent = p.name
     sel.appendChild(opt)
@@ -178,7 +143,7 @@ function populatePresets(irr) {
 function init() {
   group = GROUPS[state.groupKey]
   if (!group) return
-  irreps = getIrreps(state.groupKey, group)
+  irreps = getIrreps(state.groupKey)
 
   state.composition = []
   state.currentElement = group.elements[0]

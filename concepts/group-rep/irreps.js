@@ -9,109 +9,16 @@ function rot2(theta) {
 
 function reflY() { return [[1, 0], [0, -1]] }
 
-function matMulSmall(A, B) {
-  const n = A.length, m = B[0].length, k = B.length
-  return Array.from({ length: n }, (_, i) =>
-    Array.from({ length: m }, (_, j) =>
-      A[i].reduce((s, v, l) => s + v * B[l][j], 0)
-    )
-  )
-}
-
-// Jacobi eigendecomposition for symmetric real matrix.
-// Returns { values: float[], vectors: float[][] } where vectors[i][k] = i-th component of k-th eigenvector.
-function eigenSymm(M) {
-  const n = M.length
-  let A = M.map(r => [...r])
-  let V = Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))
-  )
-  for (let iter = 0; iter < 200; iter++) {
-    let p = 0, q = 1, maxVal = 0
-    for (let i = 0; i < n; i++)
-      for (let j = i + 1; j < n; j++)
-        if (Math.abs(A[i][j]) > maxVal) { maxVal = Math.abs(A[i][j]); p = i; q = j }
-    if (maxVal < 1e-12) break
-
-    const diff = A[q][q] - A[p][p]
-    const theta = diff === 0 ? Math.PI / 4 : 0.5 * Math.atan2(2 * A[p][q], diff)
-    const c = Math.cos(theta), s = Math.sin(theta)
-
-    const Anew = A.map(r => [...r])
-    for (let i = 0; i < n; i++) {
-      if (i === p || i === q) continue
-      Anew[i][p] = Anew[p][i] = c * A[i][p] - s * A[i][q]
-      Anew[i][q] = Anew[q][i] = s * A[i][p] + c * A[i][q]
-    }
-    Anew[p][p] = c * c * A[p][p] - 2 * s * c * A[p][q] + s * s * A[q][q]
-    Anew[q][q] = s * s * A[p][p] + 2 * s * c * A[p][q] + c * c * A[q][q]
-    Anew[p][q] = Anew[q][p] = 0
-    A = Anew
-
-    const Vnew = V.map(r => [...r])
-    for (let i = 0; i < n; i++) {
-      Vnew[i][p] = c * V[i][p] - s * V[i][q]
-      Vnew[i][q] = s * V[i][p] + c * V[i][q]
-    }
-    V = Vnew
-  }
-  return { values: A.map((r, i) => r[i]), vectors: V }
-}
-
-// Conjugate all generator matrices to an ONB w.r.t. the G-invariant inner product.
-// For representations that already use orthogonal matrices, this is a no-op (P = I).
-function orthogonalizeRep(irr, group) {
-  const dim = irr.dim
-  const elems = group.elements
-  const sz = elems.length
-
-  // Gram matrix: M = (1/|G|) Σ_g ρ(g)ᵀ ρ(g)
-  const gram = Array.from({ length: dim }, () => Array(dim).fill(0))
-  for (const elem of elems) {
-    const rho = irr.getMatrix(group, elem)
-    for (let i = 0; i < dim; i++)
-      for (let j = 0; j < dim; j++) {
-        let s = 0
-        for (let k = 0; k < dim; k++) s += rho[k][i] * rho[k][j]
-        gram[i][j] += s
-      }
-  }
-  for (let i = 0; i < dim; i++)
-    for (let j = 0; j < dim; j++) gram[i][j] /= sz
-
-  // Check if already orthogonal (gram ≈ I)
-  let maxErr = 0
-  for (let i = 0; i < dim; i++)
-    for (let j = 0; j < dim; j++) {
-      const expected = i === j ? 1 : 0
-      maxErr = Math.max(maxErr, Math.abs(gram[i][j] - expected))
-    }
-  if (maxErr < 1e-8) return irr  // already orthogonal
-
-  const { values, vectors } = eigenSymm(gram)
-
-  // P = V Λ^{-1/2}: columns are G-ONB.  P[i][j] = vectors[i][j] / sqrt(values[j])
-  // P_inv = Λ^{1/2} Vᵀ:  P_inv[i][j] = sqrt(values[i]) * vectors[j][i]
-  const P = Array.from({ length: dim }, (_, i) =>
-    Array.from({ length: dim }, (_, j) => vectors[i][j] / Math.sqrt(Math.max(values[j], 1e-14)))
-  )
-  const Pinv = Array.from({ length: dim }, (_, i) =>
-    Array.from({ length: dim }, (_, j) => Math.sqrt(Math.max(values[i], 1e-14)) * vectors[j][i])
-  )
-
-  const newGenMatrices = {}
-  for (const [genId, rho] of Object.entries(irr.genMatrices)) {
-    newGenMatrices[genId] = matMulSmall(Pinv, matMulSmall(rho, P))
-  }
-
-  return buildIrrep({
-    name: irr.name,
-    dim: irr.dim,
-    field: 'R',
-    charLabel: irr.charLabel,
-    genMatrices: newGenMatrices,
-  })
-}
+// Pre-orthogonalized basis constants shared by S3/S4/A4 irreps.
+// Values: _r3h = √3/2, _s8 = sin(π/8), _c8 = cos(π/8), _r2 = 1/√2,
+//         _q = sin(π/8)cos(π/8) = sin(π/4)/2, _s2 = sin²(π/8), _c2 = cos²(π/8)
+const _r3h = Math.sqrt(3) / 2
+const _s8  = Math.sin(Math.PI / 8)
+const _c8  = Math.cos(Math.PI / 8)
+const _r2  = Math.SQRT1_2
+const _q   = _s8 * _c8
+const _s2  = _s8 * _s8
+const _c2  = _c8 * _c8
 
 // ─── Irrep 팩토리 ─────────────────────────────────────────────────────────────
 
@@ -203,7 +110,7 @@ function dnIrreps(n) {
 
 
 // ─── S_3 irrep ───────────────────────────────────────────────────────────
-// Basis e1-e2, e2-e3 is NOT orthonormal → orthogonalize.
+// std 2D: pre-orthogonalized reflection matrices.
 
 function s3Irreps() {
   const tau1Id = '1,0,2', tau2Id = '0,2,1'
@@ -218,13 +125,16 @@ function s3Irreps() {
     }),
     buildIrrep({
       name: 'std', dim: 2, charLabel: 'χ₃',
-      genMatrices: { [tau1Id]: [[-1, 1], [0, 1]], [tau2Id]: [[1, 0], [1, -1]] },
+      genMatrices: {
+        [tau1Id]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
+        [tau2Id]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
+      },
     }),
   ]
 }
 
 // ─── S_4 irrep ────────────────────────────────────────────────────────────
-// ρ₂ and std3 use non-orthonormal bases → orthogonalize.
+// All non-trivial/sign irreps: pre-orthogonalized.
 
 function s4Irreps() {
   const id12 = '1,0,2,3', id23 = '0,2,1,3', id34 = '0,1,3,2'
@@ -241,25 +151,25 @@ function s4Irreps() {
     buildIrrep({
       name: 'ρ₂', dim: 2, charLabel: 'χ₃',
       genMatrices: {
-        [id12]: [[-1, 1], [0, 1]],
-        [id23]: [[1, 0], [1, -1]],
-        [id34]: [[-1, 1], [0, 1]],
+        [id12]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
+        [id23]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
+        [id34]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
       },
     }),
     buildIrrep({
       name: 'std', dim: 3, charLabel: 'χ₄',
       genMatrices: {
-        [id12]: [[-1, 0, 0], [1, 1, 0], [0, 0, 1]],
-        [id23]: [[1, 1, 0], [0, -1, 0], [0, 1, 1]],
-        [id34]: [[1, 0, 0], [0, 1, 1], [0, 0, -1]],
+        [id12]: [[ _s2,  _c8,  _q], [ _c8, 0, -_s8], [ _q, -_s8,  _c2]],
+        [id23]: [[-_r2,    0, -_r2], [   0, 1,    0], [-_r2,   0,  _r2]],
+        [id34]: [[ _s2, -_c8,  _q], [-_c8, 0,  _s8], [ _q,  _s8,  _c2]],
       },
     }),
     buildIrrep({
       name: 'std⊗sgn', dim: 3, charLabel: 'χ₅',
       genMatrices: {
-        [id12]: [[1, 0, 0], [-1, -1, 0], [0, 0, -1]],
-        [id23]: [[-1, -1, 0], [0, 1, 0], [0, -1, -1]],
-        [id34]: [[-1, 0, 0], [0, -1, -1], [0, 0, 1]],
+        [id12]: [[-_s2, -_c8, -_q], [-_c8, 0,  _s8], [-_q,  _s8, -_c2]],
+        [id23]: [[ _r2,    0,  _r2], [   0, -1,   0], [ _r2,  0,  -_r2]],
+        [id34]: [[-_s2,  _c8, -_q], [ _c8, 0, -_s8], [-_q, -_s8, -_c2]],
       },
     }),
   ]
@@ -267,9 +177,8 @@ function s4Irreps() {
 
 
 // ─── A_5 irrep ────────────────────────────────────────────────────────────
-// 표현식: ⟨r, c | r⁵ = c³ = (rc)² = 1⟩
-// r = (12345) 1-indexed → snId '1,2,3,4,0'
-// c = (142)  1-indexed → snId '3,0,2,1,4'
+// r = (12345) 1-indexed → '1,2,3,4,0'
+// c = (142)  1-indexed → '3,0,2,1,4'
 
 function a5Irreps() {
   const rId = '1,2,3,4,0'
@@ -283,7 +192,7 @@ function a5Irreps() {
       genMatrices: { [rId]: [[1]], [cId]: [[1]] },
     }),
 
-    // 3D icosahedral (α = +√5)
+    // 3D icosahedral (already orthogonal, α = +√5)
     buildIrrep({
       name: '3D', dim: 3, charLabel: 'χ₃',
       genMatrices: {
@@ -296,7 +205,7 @@ function a5Irreps() {
       },
     }),
 
-    // 3D' Galois conjugate (α = −√5)
+    // 3D' Galois conjugate (already orthogonal, α = −√5)
     buildIrrep({
       name: "3D'", dim: 3, charLabel: "χ₃'",
       genMatrices: {
@@ -309,32 +218,54 @@ function a5Irreps() {
       },
     }),
 
-    // 4D: permutation rep on 5 letters, basis e₁-e₅, e₂-e₅, e₃-e₅, e₄-e₅
+    // 4D: pre-orthogonalized permutation restriction
     buildIrrep({
       name: '4D', dim: 4, charLabel: 'χ₄',
       genMatrices: {
-        [rId]: [[-1,-1,-1,-1],[1,0,0,0],[0,1,0,0],[0,0,1,0]],
-        [cId]: [[0,1,0,0],[0,0,0,1],[0,0,1,0],[1,0,0,0]],
+        [rId]: [
+          [-0.5,              -0.771846213546, -0.392751095015,  0],
+          [ 0.349854392050,    0.183913380773, -0.806821538162, -0.439109073345],
+          [-0.051008865539,    0.253838633618, -0.433913380773,  0.862950300832],
+          [-0.790569415042,    0.553168364145, -0.080652097982, -0.25],
+        ],
+        [cId]: [
+          [ 0.5,               0.627571354653, -0.596786557170,  0],
+          [ 0.771846213546,   -0.010407617454,  0.635724078618,  0],
+          [ 0.392751095015,   -0.778489483755, -0.489592382546,  0],
+          [ 0,                 0,               0,               1],
+        ],
       },
     }),
 
-    // 5D: augmented permutation rep (6 Sylow-5 subgroups) minus trivial
+    // 5D: pre-orthogonalized augmented permutation restriction
     buildIrrep({
       name: '5D', dim: 5, charLabel: 'χ₅',
       genMatrices: {
-        [rId]: [[1,0,0,0,0],[0,0,0,1,0],[0,1,0,0,0],[-1,-1,-1,-1,-1],[0,0,1,0,0]],
-        [cId]: [[0,1,0,0,0],[0,0,0,1,0],[0,0,0,0,1],[1,0,0,0,0],[-1,-1,-1,-1,-1]],
+        [rId]: [
+          [-0.135895036780, -0.475003884690,  0.598587758455,  0.522563416325,  0.352879610994],
+          [-0.958498914090, -0.021886573310, -0.053743592436, -0.265588049542,  0.085880287663],
+          [-0.187816159712, -0.134285899485,  0.029041825608,  0.395743211860, -0.888389706144],
+          [-0.018237835803, -0.480452738233, -0.788605361011,  0.328739784482,  0.197140270754],
+          [ 0.164938904332, -0.724585916895,  0.126737834326, -0.625865742971, -0.2],
+        ],
+        [cId]: [
+          [ 0.022274704206, -0.066111913693,  0.431040943052, -0.884382222611,  0.164938904332],
+          [-0.406875928133, -0.392911959591,  0.387007627554,  0.072612095194, -0.724585916895],
+          [ 0.540466669956, -0.826921034707, -0.048213308757,  0.075567051250,  0.126737834326],
+          [ 0.386094581858,  0.153020118956, -0.539011128247, -0.381149435858, -0.625865742971],
+          [ 0.626723678494,  0.366109071770,  0.609566470626,  0.248214214482, -0.2],
+        ],
       },
     }),
   ]
 }
 
 // ─── A_4 irrep ────────────────────────────────────────────────────────────
-// std3 uses non-orthonormal basis → orthogonalize.
+// std 3D: pre-orthogonalized.
 
 function a4Irreps() {
-  const gen1Id = '1,2,0,3'  // (012) in 0-indexed
-  const gen2Id = '1,3,2,0'  // (013) in 0-indexed
+  const gen1Id = '1,2,0,3'  // (012) in 0-indexed = (123) in 1-indexed
+  const gen2Id = '1,3,2,0'  // (013) in 0-indexed = (124) in 1-indexed
 
   return [
     buildIrrep({
@@ -343,14 +274,13 @@ function a4Irreps() {
     }),
     buildIrrep({
       name: '2D', dim: 2, charLabel: 'χ₂₃',
-      // (012) in C₃ class → ω = e^{2πi/3}; (013) in C₃' class → ω²
       genMatrices: { [gen1Id]: rot2(2 * Math.PI / 3), [gen2Id]: rot2(4 * Math.PI / 3) },
     }),
     buildIrrep({
       name: 'std', dim: 3, charLabel: 'χ₄',
       genMatrices: {
-        [gen1Id]: [[0, -1, 1], [1, -1, 1], [0, 0, 1]],
-        [gen2Id]: [[0, 0, -1], [1, 0, -1], [1, -1, 0]],
+        [gen1Id]: [[ _q, -_s8, -_c2], [-_c8, 0, -_s8], [_s2,  _c8, -_q]],
+        [gen2Id]: [[-_q,  _c8, -_s2], [-_s8, 0,  _c8], [_c2,  _s8,  _q]],
       },
     }),
   ]
@@ -358,26 +288,16 @@ function a4Irreps() {
 
 // ─── 공개 API ────────────────────────────────────────────────────────────────
 
-// group is the GROUPS[groupKey] object, needed for orthogonalization.
-export function getIrreps(groupKey, group) {
-  let raw
+export function getIrreps(groupKey) {
   if (groupKey.startsWith('D')) {
     const n = parseInt(groupKey.slice(1))
-    raw = dnIrreps(n)
-  } else if (groupKey === 'S3') {
-    raw = s3Irreps()
-  } else if (groupKey === 'S4') {
-    raw = s4Irreps()
-  } else if (groupKey === 'A4') {
-    raw = a4Irreps()
-  } else if (groupKey === 'A5') {
-    raw = a5Irreps()
-  } else {
-    return []
+    return dnIrreps(n)
   }
-
-  // Orthogonalize every irrep (no-op for already-orthogonal reps).
-  return raw.map(irr => orthogonalizeRep(irr, group))
+  if (groupKey === 'S3') return s3Irreps()
+  if (groupKey === 'S4') return s4Irreps()
+  if (groupKey === 'A4') return a4Irreps()
+  if (groupKey === 'A5') return a5Irreps()
+  return []
 }
 
 export function characterTable(group, irreps) {
