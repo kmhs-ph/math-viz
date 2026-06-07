@@ -1,14 +1,11 @@
 import { createSlider, createSelect, addDivider } from '../../shared/controls.js'
 
-// Complex coefficient helpers
 const C = (re, im) => ({ re, im })
 const cmag  = c => Math.hypot(c.re, c.im)
 const carg  = c => Math.atan2(c.im, c.re)
 const cscale = (k, c) => C(k * c.re, k * c.im)
 
 // ── Waveforms ─────────────────────────────────────────────────────────────────
-// c(n) returns ĉₙ = {re, im}  for n ≥ 1
-// For real odd functions: ĉₙ = −i·bₙ/2  →  { re:0, im:−bₙ/2 }
 const WF = {
   square: {
     label: 'Square wave',
@@ -20,7 +17,6 @@ const WF = {
   },
   sawtooth: {
     label: 'Sawtooth wave',
-    // bₙ = 2(−1)^(n+1)/(nπ)  →  ĉₙ = {re:0, im:(−1)^n/(nπ)}
     c: n => C(0, Math.pow(-1, n) / (n * Math.PI)),
     exact: t => {
       const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
@@ -29,7 +25,6 @@ const WF = {
   },
   triangle: {
     label: 'Triangle wave',
-    // bₙ = 8(−1)^((n−1)/2)/(n²π²) for odd n
     c: n => n % 2 ? C(0, -4 * Math.pow(-1, (n-1)/2) / (n*n * Math.PI*Math.PI)) : C(0, 0),
     exact: t => {
       const x = ((t % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI)
@@ -40,8 +35,12 @@ const WF = {
   },
   dirac: {
     label: 'Dirac delta',
-    // flat spectrum: ĉₙ = −i/π for all n
     c: _n => C(0, -1 / Math.PI),
+    exact: null,
+  },
+  custom: {
+    label: 'Custom',
+    c: null,
     exact: null,
   },
 }
@@ -77,21 +76,25 @@ const KN = {
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
   wf: 'square', kn: 'identity', N: 20, param: 1,
-  c: [],        // c[n] = ĉₙ for n = 0..N  (c.length = N+1)
-  baseMax: 1,   // max |ĉₙ| from preset, for stable scale
+  c: [],
+  baseMax: 1,
   selectedN: null,
 }
 
 function resetCoeffs() {
+  if (state.wf === 'custom') return
   const wf = WF[state.wf], N = state.N
   state.c = Array.from({length: N+1}, (_, n) => n === 0 ? C(0, 0) : wf.c(n))
   state.baseMax = Math.max(0.2, ...state.c.map(cmag)) * 1.5
 }
 
 function resizeCoeffs(oldN) {
-  const wf = WF[state.wf], N = state.N
+  const N = state.N
   if (N > oldN) {
-    for (let n = oldN + 1; n <= N; n++) state.c.push(wf.c(n))
+    const wf = WF[state.wf]
+    for (let n = oldN + 1; n <= N; n++) {
+      state.c.push(state.wf === 'custom' ? C(0, 0) : wf.c(n))
+    }
     state.baseMax = Math.max(state.baseMax, ...state.c.map(cmag))
   } else {
     state.c.length = N + 1
@@ -109,7 +112,7 @@ const anim = {
 }
 
 function knCoeff(n, N) {
-  if (n === 0) return 1  // DC unchanged by all kernels
+  if (n === 0) return 1
   if (!anim.active) return KN[state.kn].coeff(n, state.param, N)
   const a = KN[anim.fromKn].coeff(n, anim.fromParam, N)
   const b = KN[anim.toKn].coeff(n, anim.toParam, N)
@@ -148,20 +151,16 @@ function prep(cv) {
 
 const PL = 10, PR = 10
 
-// ── Phase color (arg → HSL) ───────────────────────────────────────────────────
 function phaseColor(arg, alpha = 1) {
   const hue = ((arg / Math.PI + 1) / 2) * 360
   return `hsla(${hue.toFixed(1)},82%,58%,${alpha})`
 }
 
-// ── TL panel layout (updated each render, used by click/hover handlers) ───────
 let tlStep = 0
-
-// ── BL panel complex-plane state (updated each renderBL) ─────────────────────
 let blCPlane = { cx: 0, cy: 0, scale: 100 }
 let blDrag = false
 
-// ── renderTL — magnitude bars + phase color + K̂ hover ────────────────────────
+// ── renderTL — bars show |ĉₙ|, kernel K̂(n) as smooth curve overlay ───────────
 function renderTL() {
   const [ctx, W, H] = prep(CVTL)
   ctx.clearRect(0, 0, W, H)
@@ -171,22 +170,23 @@ function renderTL() {
   const cH   = H - PT - PB
   const yMax = state.baseMax
   const yOf  = v => PT + (1 - v / yMax) * cH
-  const y0   = yOf(0)  // bottom of bars
+  const y0   = yOf(0)
 
-  const nBars = N + 1  // n = 0..N
+  const nBars = N + 1
   const step  = (W - PL - PR) / nBars
   tlStep = step
   const barW = Math.max(1.5, step - 2)
 
+  // Bars: height = K̂(n)·|ĉₙ|, color = phase of ĉₙ
   for (let n = 0; n <= N; n++) {
     const cn     = state.c[n]
     const k      = knCoeff(n, N)
-    const effMag = k * cmag(cn)
+    const mag    = cmag(cn)
+    const effMag = k * mag
     const bx     = PL + (n + 0.5) * step - barW / 2
     const barTop = yOf(effMag)
     const barH   = Math.max(0, y0 - barTop)
 
-    const mag = cmag(cn)
     ctx.fillStyle = mag < 1e-9 ? 'rgba(100,105,135,0.55)' : phaseColor(carg(cn), 0.85)
     ctx.fillRect(bx, barTop, barW, barH)
 
@@ -198,22 +198,36 @@ function renderTL() {
     }
   }
 
-  // K̂ hover overlay — continuous curve at K̂_hover(n) · |c[n]|
-  if (hoverKn && hoverKn !== state.kn) {
-    const param = kernelParamFor(hoverKn)
-    const SAMP  = Math.max(80, N * 20)
+  const SAMP = Math.max(80, N * 20)
+
+  // Active kernel curve — K̂(n) mapped onto [0, yMax]
+  // Shown when non-identity (or animating) and not hovering a different kernel
+  const showActive = (state.kn !== 'identity' || anim.active) && !(hoverKn && hoverKn !== state.kn)
+  if (showActive) {
     ctx.save()
-    ctx.strokeStyle = 'rgba(92,224,92,0.55)'; ctx.lineWidth = 2.5
+    ctx.strokeStyle = 'rgba(92,224,92,0.45)'; ctx.lineWidth = 2
     ctx.beginPath()
     for (let i = 0; i <= SAMP; i++) {
-      const nf  = N * i / SAMP
-      const n0  = Math.floor(nf), n1 = Math.min(N, Math.ceil(nf))
-      const t   = nf - n0
-      const m0  = cmag(state.c[n0]), m1 = cmag(state.c[n1])
-      const ref = (1 - t) * m0 + t * m1
-      const kv  = nf === 0 ? 1 : KN[hoverKn].coeff(nf, param, N)
-      const x   = PL + (nf + 0.5) * step
-      const y   = yOf(kv * ref)
+      const nf = N * i / SAMP
+      const kv = knCoeff(nf, N)
+      const x  = PL + (nf + 0.5) * step
+      const y  = yOf(kv * yMax)
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    }
+    ctx.stroke(); ctx.restore()
+  }
+
+  // Hover kernel preview — shows K̂_hover(n) shape
+  if (hoverKn && hoverKn !== state.kn) {
+    const param = kernelParamFor(hoverKn)
+    ctx.save()
+    ctx.strokeStyle = 'rgba(92,224,92,0.62)'; ctx.lineWidth = 2.5
+    ctx.beginPath()
+    for (let i = 0; i <= SAMP; i++) {
+      const nf = N * i / SAMP
+      const kv = nf === 0 ? 1 : KN[hoverKn].coeff(nf, param, N)
+      const x  = PL + (nf + 0.5) * step
+      const y  = yOf(kv * yMax)
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
     }
     ctx.stroke(); ctx.restore()
@@ -228,7 +242,6 @@ function renderTL() {
   }
   ctx.restore()
 
-  // Panel title
   ctx.save()
   ctx.fillStyle = '#8892aa'; ctx.font = '11px Inter, sans-serif'; ctx.textBaseline = 'middle'
   const isIdent = state.kn === 'identity' && !anim.active
@@ -236,7 +249,7 @@ function renderTL() {
   ctx.restore()
 }
 
-// ── renderBL — complex plane for selected coefficient ─────────────────────────
+// ── renderBL — complex plane: ĉₙ (base, draggable) + K̂·ĉₙ (filtered) ─────────
 function renderBL() {
   const [ctx, W, H] = prep(CVBL)
   ctx.clearRect(0, 0, W, H)
@@ -254,7 +267,7 @@ function renderBL() {
   const cn  = state.c[n]
   const k   = knCoeff(n, state.N)
   const eff = cscale(k, cn)
-  const em  = cmag(eff)
+  const bm  = cmag(cn)
 
   const cx = W / 2, cy = H / 2
   const plotR = Math.min(W, H) * 0.38
@@ -281,7 +294,6 @@ function renderBL() {
   ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke()
   ctx.restore()
 
-  // Axis labels
   ctx.save()
   ctx.fillStyle = '#8892aa'; ctx.font = '9px "JetBrains Mono",monospace'
   ctx.textAlign = 'center'
@@ -289,8 +301,10 @@ function renderBL() {
   ctx.textBaseline = 'middle'; ctx.fillText('Im', cx + 4, 10)
   ctx.restore()
 
-  // Dashed circle at |c[n]| (base magnitude reference)
-  const bm = cmag(cn)
+  const em = cmag(eff)
+  const kernelActive = Math.abs(k - 1) > 0.02
+
+  // Dashed circle at |ĉₙ| — reference for base magnitude
   if (bm > 1e-9) {
     ctx.save()
     ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.setLineDash([3, 5])
@@ -298,57 +312,67 @@ function renderBL() {
     ctx.restore()
   }
 
-  if (em > 1e-9) {
-    const arg = carg(eff)
-    const [ex, ey] = toPx(eff.re, eff.im)
-    const arcR = Math.min(em * scale * 0.4, 26)
+  // Base ĉₙ — secondary dashed indicator when kernel is active
+  if (bm > 1e-9 && kernelActive) {
+    const [bx, by] = toPx(cn.re, cn.im)
+    const baseArg = carg(cn)
+    ctx.save()
+    ctx.strokeStyle = phaseColor(baseArg, 0.3); ctx.lineWidth = 1.5; ctx.setLineDash([2, 4])
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke()
+    ctx.restore()
+    ctx.save()
+    ctx.strokeStyle = phaseColor(baseArg, 0.55); ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.arc(bx, by, 4, 0, 2*Math.PI); ctx.stroke()
+    ctx.restore()
+  }
 
-    // Phase arc from +Re to phasor direction
+  // Effective K̂·ĉₙ — main draggable point
+  const mainC  = kernelActive ? eff : cn
+  const mainM  = kernelActive ? em  : bm
+  if (mainM > 1e-9) {
+    const [mx, my] = toPx(mainC.re, mainC.im)
+    const arg  = carg(mainC)
+    const arcR = Math.min(mainM * scale * 0.4, 26)
+
     ctx.save()
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.arc(cx, cy, arcR, 0, -arg, arg > 0)
-    ctx.stroke(); ctx.restore()
-
-    // Phasor line
-    ctx.save()
-    ctx.strokeStyle = phaseColor(arg, 0.8); ctx.lineWidth = 2
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke()
+    ctx.beginPath(); ctx.arc(cx, cy, arcR, 0, -arg, arg > 0); ctx.stroke()
     ctx.restore()
 
-    // Value label above point
+    ctx.save()
+    ctx.strokeStyle = phaseColor(arg, 0.8); ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(mx, my); ctx.stroke()
+    ctx.restore()
+
     ctx.save()
     ctx.fillStyle = '#8892aa'; ctx.font = '9px "JetBrains Mono",monospace'
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-    ctx.fillText(em.toFixed(3), ex, ey - 9)
+    ctx.fillText(mainM.toFixed(3), mx, my - 9)
     ctx.restore()
 
-    // Point
     ctx.save()
     ctx.fillStyle = phaseColor(arg, 1)
-    ctx.beginPath(); ctx.arc(ex, ey, 6, 0, 2*Math.PI); ctx.fill()
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, 2*Math.PI); ctx.fill()
     ctx.restore()
   } else {
-    // Zero point
     ctx.save()
     ctx.fillStyle = 'rgba(180,180,200,0.6)'
     ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2*Math.PI); ctx.fill()
     ctx.restore()
   }
 
-  // Panel title with coefficient value
-  const re = eff.re, im = eff.im
-  const sign = im >= 0 ? '+' : '−'
-  const label = (state.kn === 'identity' && !anim.active)
-    ? `ĉ${n}  =  ${re.toFixed(3)} ${sign} ${Math.abs(im).toFixed(3)}i`
-    : `K̂${n}·ĉ${n}  =  ${re.toFixed(3)} ${sign} ${Math.abs(im).toFixed(3)}i`
+  // Title: shows effective value (what's being dragged)
+  const dRe  = mainC.re, dIm = mainC.im
+  const sign  = dIm >= 0 ? '+' : '−'
+  const prefix = kernelActive ? `K̂·ĉ${n}` : `ĉ${n}`
+  const label  = `${prefix}  =  ${dRe.toFixed(3)} ${sign} ${Math.abs(dIm).toFixed(3)}i`
   ctx.save()
   ctx.fillStyle = '#8892aa'; ctx.font = '10px Inter, sans-serif'; ctx.textBaseline = 'middle'
   ctx.fillText(label, PL, 12)
   ctx.restore()
 }
 
-// ── renderR — output function ─────────────────────────────────────────────────
+// ── renderR ───────────────────────────────────────────────────────────────────
 function renderR() {
   const [ctx, W, H] = prep(CVR)
   ctx.clearRect(0, 0, W, H)
@@ -362,11 +386,10 @@ function renderR() {
 
   const outVals = Array.from({length: M+1}, (_, i) => {
     const th = 2*Math.PI*i/M
-    let s = state.c[0].re  // DC term (real)
+    let s = state.c[0].re
     for (let n = 1; n <= N; n++) {
       const k  = knCoeff(n, N)
       const cn = state.c[n]
-      // Re(k·ĉₙ·e^{inθ}) = k·(re·cos − im·sin)
       s += 2 * k * (cn.re * Math.cos(n * th) - cn.im * Math.sin(n * th))
     }
     return s
@@ -379,7 +402,6 @@ function renderR() {
   const cH   = H - PT - PB
   const yOf  = v => PT + (1 - (v - yMin) / (yMax - yMin)) * cH
 
-  // Zero line
   ctx.save()
   ctx.strokeStyle = 'rgba(255,255,255,0.13)'; ctx.lineWidth = 1
   ctx.beginPath(); ctx.moveTo(PL, yOf(0)); ctx.lineTo(W - PR, yOf(0)); ctx.stroke()
@@ -424,7 +446,7 @@ function loop(ts) {
 }
 requestAnimationFrame(loop)
 
-// ── TL event handlers — click to select bar ───────────────────────────────────
+// ── TL: click to select bar ───────────────────────────────────────────────────
 CVTL.addEventListener('click', e => {
   if (tlStep <= 0) return
   const rect = CVTL.getBoundingClientRect()
@@ -443,7 +465,7 @@ CVTL.addEventListener('mousemove', e => {
 
 CVTL.addEventListener('mouseleave', () => { CVTL.style.cursor = 'default' })
 
-// ── BL event handlers — drag complex point ────────────────────────────────────
+// ── BL: drag sets K̂(n)·ĉₙ = drag_point, inverts to ĉₙ = drag_point / K̂(n) ──
 function applyBLDrag(e) {
   const rect = CVBL.getBoundingClientRect()
   const { cx, cy, scale } = blCPlane
@@ -453,11 +475,14 @@ function applyBLDrag(e) {
   const n  = state.selectedN
   if (n === null) return
   const k = knCoeff(n, state.N)
-  // User drags the effective point (k·ĉₙ); back-calculate ĉₙ
   if (Math.abs(k) > 1e-6) {
     state.c[n] = n === 0 ? C(re / k, 0) : C(re / k, im / k)
   } else {
     state.c[n] = n === 0 ? C(re, 0) : C(re, im)
+  }
+  if (state.wf !== 'custom') {
+    state.wf = 'custom'
+    wfSelectEl.value = 'custom'
   }
   render()
 }
@@ -487,6 +512,7 @@ createSelect({
   value: state.wf,
   onChange: v => { state.wf = v; anim.active = false; resetCoeffs(); render() },
 })
+const wfSelectEl = ctrlEl.querySelector('select')
 
 addDivider(ctrlEl)
 
@@ -525,11 +551,8 @@ createSlider({
   min: 2, max: 50, step: 1, value: state.N,
   format: v => Math.round(v),
   onChange: v => {
-    const old = state.N
-    state.N = Math.round(v)
-    anim.active = false
-    resizeCoeffs(old)
-    render()
+    const old = state.N; state.N = Math.round(v)
+    anim.active = false; resizeCoeffs(old); render()
   },
 })
 
