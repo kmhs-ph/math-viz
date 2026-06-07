@@ -270,11 +270,61 @@ select:hover, select:focus { border-color: var(--accent); }
   min-height: 0;
 }
 
+.fourier-panel-right {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .fourier-panel canvas {
   display: block;
   width: 100%;
   height: 100%;
 }
+
+.fourier-kernel-group {
+  display: flex;
+  gap: 5px;
+}
+
+.fourier-kernel-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 15px;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: var(--font-sans);
+  transition: border-color 0.15s, background 0.15s;
+  line-height: 1.25;
+}
+
+.fourier-kernel-btn:hover {
+  border-color: rgba(92, 224, 92, 0.48);
+  background: rgba(92, 224, 92, 0.07);
+}
+
+.fourier-kernel-btn.active {
+  border-color: #5ce05c;
+  background: rgba(92, 224, 92, 0.1);
+}
+
+.fkb-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.fkb-formula {
+  font-size: 0.67rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.fourier-kernel-btn.active .fkb-name   { color: #5ce05c; }
+.fourier-kernel-btn.active .fkb-formula { color: rgba(92,224,92,0.6); }
 
 /* ── 유한군 표현론 (group-rep) ── */
 .gr-layout {
