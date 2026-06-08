@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bézout's Theorem — Math Viz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a class="site-nav__brand" href="../../">Math Visualizations</a>
+    <div class="site-nav__concept">
+      <span class="site-nav__divider">|</span>
+      <span class="site-nav__title">Bézout's Theorem</span>
+    </div>
+  </nav>
+
+  <div class="concept-page bezout-layout">
+
+    <aside class="bezout-sidebar">
+      <div class="bezout-sidebar__header">
+        <span class="bezout-sidebar__title">Curves &amp; Intersections</span>
+      </div>
+
+      <div class="bezout-section">
+        <div class="bezout-section-title">Polynomials</div>
+        <div class="bezout-field-group">
+          <label class="bezout-field-label">f(x,y)</label>
+          <input id="input-f" class="bezout-poly-input" type="text" value="x^2 + y^2 - 1" spellcheck="false" autocomplete="off" />
+          <div id="error-f" class="bezout-field-error"></div>
+        </div>
+        <div class="bezout-field-group" style="margin-top:10px">
+          <label class="bezout-field-label">g(x,y)</label>
+          <input id="input-g" class="bezout-poly-input" type="text" value="2*y - 1" spellcheck="false" autocomplete="off" />
+          <div id="error-g" class="bezout-field-error"></div>
+        </div>
+        <button id="btn-compute" class="bezout-compute-btn">Compute</button>
+        <div id="error-global" class="bezout-field-error" style="margin-top:6px"></div>
+      </div>
+
+      <div class="bezout-section">
+        <div class="bezout-section-title">Examples</div>
+        <div class="bezout-example-grid" id="example-grid"></div>
+      </div>
+
+      <div class="bezout-section">
+        <div class="bezout-section-title">Display</div>
+        <label class="bezout-toggle">
+          <input type="checkbox" id="tog-complex" checked />
+          <span>Complex shadows</span>
+        </label>
+        <label class="bezout-toggle">
+          <input type="checkbox" id="tog-infinity" checked />
+          <span>Infinity points</span>
+        </label>
+        <label class="bezout-toggle">
+          <input type="checkbox" id="tog-warnings" checked />
+          <span>Warnings</span>
+        </label>
+      </div>
+
+      <div class="bezout-section" id="report-section" style="display:none">
+        <div class="bezout-section-title">Solver Report</div>
+        <div id="report-rows"></div>
+      </div>
+
+      <div class="bezout-section" id="warning-section" style="display:none">
+        <div class="bezout-section-title" style="color:#ffa94d">Warnings</div>
+        <ul class="bezout-warning-list" id="warning-list"></ul>
+      </div>
+
+      <div class="bezout-section bezout-disclaimer">
+        <p>Input: integer coefficients, total degree ≤ 3, |coeff| ≤ 20.</p>
+        <p>Results are numerical approximations, not certified algebraic computation.</p>
+        <p>Bézout bound counts intersections in ℂP² with multiplicity.</p>
+      </div>
+    </aside>
+
+    <div class="bezout-canvas-area">
+      <canvas id="canvas"></canvas>
+      <div id="bezout-tooltip" class="bezout-tooltip"></div>
+    </div>
+
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

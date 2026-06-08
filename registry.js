@@ -13,4 +13,11 @@ export const concepts = [
     tags: ['Representation Theory'],
     path: 'concepts/group-rep/',
   },
+  {
+    id: 'bezout',
+    title: "Bézout's Theorem",
+    description: 'Two algebraic curves of degrees d₁ and d₂ meet in exactly d₁·d₂ points in ℝP², counted over ℂ. Visualize real and complex intersections.',
+    tags: ['Algebraic Geometry'],
+    path: 'concepts/bezout/',
+  },
 ]
