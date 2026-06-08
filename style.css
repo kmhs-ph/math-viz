@@ -1051,3 +1051,108 @@ select:hover, select:focus { border-color: var(--accent); }
 }
 
 .gr-top-bar .ctrl-group { gap: 8px; }
+
+/* ── 모바일 반응형 (@media max-width: 768px) ─────────────────────────────── */
+
+@media (max-width: 768px) {
+
+  /* Nav */
+  .site-nav {
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .site-nav__title {
+    display: none;
+  }
+
+  /* 홈페이지 Hero */
+  .home-hero {
+    padding: 48px 20px 32px;
+  }
+  .home-hero__title {
+    font-size: 2rem;
+  }
+
+  /* 홈페이지 Bento 그리드 */
+  .bento-wrapper {
+    padding: 0 16px 40px;
+  }
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento-card--featured,
+  .bento-card--secondary {
+    grid-column: 1 / -1;
+  }
+
+  /* Philosophy 섹션 */
+  .home-philosophy {
+    flex-direction: column;
+    padding: 32px 24px;
+    gap: 24px;
+  }
+  .philosophy-item {
+    padding: 0;
+  }
+  .philosophy-divider {
+    width: 100%;
+    height: 1px;
+  }
+
+  /* 개념 페이지 공통: 고정 높이 해제 → 스크롤 가능 */
+  .concept-page {
+    height: auto;
+    min-height: calc(100dvh - 60px);
+    overflow: auto;
+  }
+
+  /* Fourier: 사이드바 상단, 캔버스 1열 */
+  .fourier-layout {
+    flex-direction: column;
+  }
+  .fourier-sidebar {
+    width: auto;
+    max-height: 180px;
+    margin: 12px 12px 0;
+  }
+  .fourier-canvas-area {
+    padding: 12px;
+  }
+  .fourier-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+  }
+  .fourier-grid .fourier-panel {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    min-height: 220px;
+  }
+
+  /* Group-rep: 세로 스택, 캔버스 → 컨트롤 → 정보 순 */
+  .gr-layout {
+    flex-direction: column;
+    overflow: auto;
+    height: auto;
+    padding: 12px;
+    gap: 12px;
+  }
+  .gr-viz {
+    min-height: 300px;
+    order: 1;
+  }
+  .gr-canvas-wrap {
+    min-height: 250px;
+  }
+  .gr-composer {
+    width: 100%;
+    min-width: 0;
+    order: 2;
+  }
+  .gr-irrep-panel {
+    width: 100%;
+    min-width: 0;
+    max-height: 280px;
+    order: 3;
+  }
+}
