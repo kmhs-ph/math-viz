@@ -13,11 +13,4 @@ export const concepts = [
     tags: ['Representation Theory'],
     path: 'concepts/group-rep/',
   },
-  {
-    id: 'lie-algebra',
-    title: 'Lie Algebra — Commutator',
-    description: 'Watch the group commutator exp(tX)exp(tY)exp(-tX)exp(-tY) converge to exp(t²[X,Y]) as t→0, step by step on GL₂(ℝ).',
-    tags: ['Lie Theory'],
-    path: 'concepts/lie-algebra/',
-  },
 ]
