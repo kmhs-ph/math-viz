@@ -1318,6 +1318,25 @@ select:hover, select:focus { border-color: var(--accent); }
   text-align: right;
 }
 
+.bezout-point {
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+
+.bezout-point-coord {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.bezout-point-meta {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
 .bezout-warning-list {
   list-style: none;
   display: flex;
