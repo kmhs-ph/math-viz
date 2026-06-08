@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fourier Series — Math Viz</title>
+  <title>Bloch Sphere — Lie Algebra Commutator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/fourier-BWU9cF7o.js"></script>
+  <script type="module" crossorigin src="/math-viz/assets/lie-algebra-Nq_YeKVy.js"></script>
   <link rel="modulepreload" crossorigin href="/math-viz/assets/style-elFVMjQj.js">
   <link rel="modulepreload" crossorigin href="/math-viz/assets/controls-DkoGpid3.js">
   <link rel="stylesheet" crossorigin href="/math-viz/assets/style-B71MHOi4.css">
@@ -17,7 +17,7 @@
   <nav class="site-nav">
     <a class="site-nav__brand" href="../../">Math Visualizations</a>
     <div class="site-nav__concept">
-      <span class="site-nav__title">Fourier Series</span>
+      <span class="site-nav__title">Bloch Sphere — SU(2) Commutator</span>
     </div>
   </nav>
 
@@ -25,17 +25,13 @@
 
     <aside class="fourier-sidebar">
       <div class="fourier-sidebar__header">
-        <h2 class="fourier-sidebar__title">Function Config</h2>
+        <h2 class="fourier-sidebar__title">Controls</h2>
       </div>
-      <div id="controls" class="fourier-controls"></div>
+      <div id="la-controls" class="fourier-controls"></div>
     </aside>
 
-    <div class="fourier-canvas-area">
-      <div class="fourier-grid">
-        <div class="fourier-panel"><canvas id="canvas-tl"></canvas></div>
-        <div class="fourier-panel" style="grid-column:2;grid-row:1/3"><canvas id="canvas-r"></canvas></div>
-        <div class="fourier-panel"><canvas id="canvas-bl"></canvas></div>
-      </div>
+    <div class="concept-canvas-area">
+      <canvas id="la-canvas"></canvas>
     </div>
 
   </div>
