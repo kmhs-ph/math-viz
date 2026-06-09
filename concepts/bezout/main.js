@@ -7,20 +7,16 @@ import { solveBezoutSystem } from './bezout_solver.js'
 
 // ── 1. Constants & tolerances (rendering-side only) ───────────────────────────
 
-const GRID_N          = 160    // marching-squares resolution
-const REAL_TOL        = 1e-6   // imaginary-part threshold for display formatting
-const POINT_DEDUP_TOL = 1e-4   // conjugate-pair matching tolerance for shadows
+const REAL_TOL = 1e-6   // imaginary-part threshold for display formatting
 
 // ── 2. Complex arithmetic ──────────────────────────────────────────────────────
 
 function C(re, im = 0) { return { re, im } }
-function cSub(a, b) { return C(a.re - b.re, a.im - b.im) }
 function cDiv(a, b) {
   const d = b.re * b.re + b.im * b.im
   return C((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d)
 }
-function cAbs(a)        { return Math.hypot(a.re, a.im) }
-function cConj(a)       { return C(a.re, -a.im) }
+function cAbs(a) { return Math.hypot(a.re, a.im) }
 
 // ── 3. Bivariate polynomial utilities (parsing + marching squares) ────────────
 // BiPoly = Map<"i,j", bigint>  (key = "i,j" means x^i y^j)
@@ -228,333 +224,301 @@ function prep() {
   return [ctx, W, H]
 }
 
-function computeLayout(W, H) {
-  const cx = W / 2, cy = H / 2
-  const radius = Math.min(W, H) * 0.44
-  const margin = radius * 0.62  // inner rect fits inside circle
-  const innerRect = {
-    left:   cx - margin,
-    top:    cy - margin,
-    right:  cx + margin,
-    bottom: cy + margin,
-    width:  2 * margin,
-    height: 2 * margin,
-    cx, cy
-  }
-  return { cx, cy, radius, innerRect }
+// ── Radial compression ρ(r) ───────────────────────────────────────────────────
+// Squeezes all of R² into a disk of radius RHO_DISK so the line at infinity is a
+// finite circle. ρ is the identity for r ≤ RHO_R0 (the undistorted "normal range"),
+// saturates as R − C·e^(−λr) → RHO_DISK for r ≥ RHO_R1, and is joined by a C²
+// smootherstep blend between. λ, C are chosen so the asymptote is tangent to the
+// identity at RHO_R0 (value + slope match), keeping the transition gentle.
+
+const RHO_R0     = 3
+const RHO_R1     = 4.5   // end of C² transition; < RHO_DISK so the blend never overshoots
+const RHO_DISK   = 5
+const RHO_LAMBDA = 1 / (RHO_DISK - RHO_R0)
+const RHO_C      = (RHO_DISK - RHO_R0) * Math.exp(RHO_LAMBDA * RHO_R0)
+
+function smootherstep(t) { return t * t * t * (t * (t * 6 - 15) + 10) }  // C²: f'=f''=0 at 0,1
+function rhoAsymptote(r) { return RHO_DISK - RHO_C * Math.exp(-RHO_LAMBDA * r) }
+function rho(r) {
+  if (r <= RHO_R0) return r
+  if (r >= RHO_R1) return rhoAsymptote(r)
+  const w = smootherstep((r - RHO_R0) / (RHO_R1 - RHO_R0))
+  return (1 - w) * r + w * rhoAsymptote(r)
 }
 
-function affinePtToCanvas(ax, ay, vp, innerRect) {
-  const tx = (ax - vp.xmin) / (vp.xmax - vp.xmin)
-  const ty = (ay - vp.ymin) / (vp.ymax - vp.ymin)
-  return {
-    px: innerRect.left + tx * innerRect.width,
-    py: innerRect.bottom - ty * innerRect.height
+// Monotone inverse via a precomputed table (rho is monotonically increasing).
+const RHO_INV = (() => {
+  const M = 4000, rMax = 24
+  const arr = new Float64Array(M + 1)
+  for (let i = 0; i <= M; i++) arr[i] = rho(i * rMax / M)
+  return { arr, M, rMax }
+})()
+function rhoInv(target) {
+  const { arr, M, rMax } = RHO_INV
+  if (target <= 0) return 0
+  if (target >= arr[M]) return rMax
+  let lo = 0, hi = M
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (arr[mid] <= target) lo = mid; else hi = mid }
+  const f = (target - arr[lo]) / ((arr[hi] - arr[lo]) || 1)
+  return (lo + f) * rMax / M
+}
+// affine plane point → compressed disk coordinate (plane units, |·| < RHO_DISK)
+function planeToDisk(ax, ay) {
+  const r = Math.hypot(ax, ay)
+  if (r < 1e-12) return [0, 0]
+  const g = rho(r)
+  return [g * ax / r, g * ay / r]
+}
+
+// ── 3D camera (orthographic orbit) ────────────────────────────────────────────
+// The disk lives in the world z=0 plane; complex points float along z. el = π/2 is
+// the top-down view (reset state) and reproduces a flat 2D look.
+
+function makeCamera(cam, cx, cy, pxScale) {
+  const ca = Math.cos(cam.az), sa = Math.sin(cam.az)
+  const phi = Math.PI / 2 - cam.el            // tilt from top-down (0 = flat)
+  const cp = Math.cos(phi), sp = Math.sin(phi)
+  return (du, dv, h = 0) => {
+    const X = du * pxScale, Y = dv * pxScale, Z = h * pxScale
+    const x1 = X * ca - Y * sa
+    const y1 = X * sa + Y * ca
+    const screenV = y1 * cp + Z * sp          // height lifts up on screen when tilted
+    const depth = -y1 * sp + Z * cp           // painter's-order key (larger = nearer)
+    return { sx: cx + x1, sy: cy - screenV, depth }
   }
 }
 
-function marchingSquares(poly, vp, N = GRID_N) {
-  const dx = (vp.xmax - vp.xmin) / N
-  const dy = (vp.ymax - vp.ymin) / N
-  // Nudge sampling by an irrational sub-cell fraction so grid vertices never land
-  // exactly on symmetric zeros (e.g. a vertex at the origin sitting on a grid line),
-  // which would make the sign test degenerate. Shift is ~1e-3 of a cell → invisible.
-  const ox = dx * 1.7e-3
-  const oy = dy * 1.3e-3
+// ── Curve extraction in disk space (marching squares) ─────────────────────────
+// Sampled uniformly in screen/disk space so resolution is even; each disk sample
+// is pulled back through ρ⁻¹ to an affine point and the polynomial evaluated there.
+// Near the boundary r→∞, so the curve approaches the directions where the leading
+// form vanishes — i.e. it meets the infinity circle exactly at its points at ∞.
+
+const CURVE_N = 200
+
+function evalPolyReal(poly, x, y) {
+  let val = 0
+  for (const [k, cv] of poly) { const [pi, pj] = biParsKey(k); val += Number(cv) * Math.pow(x, pi) * Math.pow(y, pj) }
+  return val
+}
+
+function computeCurveSegments(poly) {
+  const N = CURVE_N, R = RHO_DISK, step = 2 * R / N
+  const ox = step * 1.7e-3, oy = step * 1.3e-3   // anti-degeneracy nudge
   const grid = []
   for (let j = 0; j <= N; j++) {
-    grid.push([])
+    const row = []
     for (let i = 0; i <= N; i++) {
-      const x = vp.xmin + i * dx + ox
-      const y = vp.ymin + j * dy + oy
-      // Evaluate using real arithmetic (faster for rendering)
-      let val = 0
-      for (const [k, cv] of poly) {
-        const [pi, pj] = biParsKey(k)
-        val += Number(cv) * Math.pow(x, pi) * Math.pow(y, pj)
-      }
-      grid[j].push(val)
+      const du = -R + i * step + ox, dv = -R + j * step + oy
+      const rd = Math.hypot(du, dv)
+      if (rd >= R) { row.push(NaN); continue }   // outside the disk
+      const r = rhoInv(rd)
+      const ax = rd < 1e-12 ? 0 : r * du / rd
+      const ay = rd < 1e-12 ? 0 : r * dv / rd
+      row.push(evalPolyReal(poly, ax, ay))
+    }
+    grid.push(row)
+  }
+  const segs = []
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const v00 = grid[j][i], v10 = grid[j][i + 1], v01 = grid[j + 1][i], v11 = grid[j + 1][i + 1]
+    if (Number.isNaN(v00) || Number.isNaN(v10) || Number.isNaN(v01) || Number.isNaN(v11)) continue
+    const a0 = -R + i * step + ox, a1 = a0 + step, b0 = -R + j * step + oy, b1 = b0 + step
+    const interp = (a, b, va, vb) => a + (b - a) * (-va / (vb - va))
+    const s = (v00 < 0 ? 8 : 0) | (v10 < 0 ? 4 : 0) | (v11 < 0 ? 2 : 0) | (v01 < 0 ? 1 : 0)
+    const bottom = () => [interp(a0, a1, v00, v10), b0]
+    const top    = () => [interp(a0, a1, v01, v11), b1]
+    const left   = () => [a0, interp(b0, b1, v00, v01)]
+    const right  = () => [a1, interp(b0, b1, v10, v11)]
+    const add = (p, q) => segs.push([p[0], p[1], q[0], q[1]])
+    switch (s) {
+      case 1: case 14: add(left(), top());     break
+      case 2: case 13: add(top(), right());    break
+      case 3: case 12: add(left(), right());   break
+      case 4: case 11: add(bottom(), right()); break
+      case 6: case 9:  add(bottom(), top());   break
+      case 7: case 8:  add(bottom(), left());  break
+      case 5:  if (v00 + v10 + v11 + v01 < 0) { add(bottom(), left()); add(top(), right()) } else { add(left(), top()); add(bottom(), right()) } break
+      case 10: if (v00 + v10 + v11 + v01 < 0) { add(left(), top()); add(bottom(), right()) } else { add(bottom(), left()); add(top(), right()) } break
     }
   }
-
-  const segments = []
-  for (let j = 0; j < N; j++) {
-    for (let i = 0; i < N; i++) {
-      const v00 = grid[j][i], v10 = grid[j][i + 1]
-      const v01 = grid[j + 1][i], v11 = grid[j + 1][i + 1]
-      const x0 = vp.xmin + i * dx + ox, x1 = x0 + dx
-      const y0 = vp.ymin + j * dy + oy, y1 = y0 + dy
-
-      // linear interpolation along edge
-      function interp(a, b, va, vb) { return a + (b - a) * (-va / (vb - va)) }
-
-      // bits: v00=8 (bottom-left), v10=4 (bottom-right), v11=2 (top-right), v01=1 (top-left)
-      const s = (v00 < 0 ? 8 : 0) | (v10 < 0 ? 4 : 0) | (v11 < 0 ? 2 : 0) | (v01 < 0 ? 1 : 0)
-
-      // each lambda interpolates the contour crossing along one cell edge
-      const bottom = () => [interp(x0, x1, v00, v10), y0]  // BL→BR
-      const top    = () => [interp(x0, x1, v01, v11), y1]  // TL→TR
-      const left   = () => [x0, interp(y0, y1, v00, v01)]  // BL→TL
-      const right  = () => [x1, interp(y0, y1, v10, v11)]  // BR→TR
-
-      const addSeg = (a, b) => segments.push([a[0], a[1], b[0], b[1]])
-
-      switch (s) {
-        case 1: case 14: addSeg(left(), top());     break  // TL isolated
-        case 2: case 13: addSeg(top(), right());    break  // TR isolated
-        case 3: case 12: addSeg(left(), right());   break  // top/bottom row split
-        case 4: case 11: addSeg(bottom(), right()); break  // BR isolated
-        case 6: case 9:  addSeg(bottom(), top());   break  // left/right column split
-        case 7: case 8:  addSeg(bottom(), left());  break  // BL isolated
-        case 5: {  // TL & BR negative — saddle; center sign picks connectivity
-          if (v00 + v10 + v11 + v01 < 0) { addSeg(bottom(), left()); addSeg(top(), right()) }
-          else { addSeg(left(), top()); addSeg(bottom(), right()) }
-          break
-        }
-        case 10: {  // BL & TR negative — saddle
-          if (v00 + v10 + v11 + v01 < 0) { addSeg(left(), top()); addSeg(bottom(), right()) }
-          else { addSeg(bottom(), left()); addSeg(top(), right()) }
-          break
-        }
-      }
-    }
-  }
-  return segments
+  return segs
 }
+
+// ── Point markers ─────────────────────────────────────────────────────────────
+
+const HEIGHT_SCALE = 1.3
+function markerRadius(m, base, grow) { return base + (Math.max(1, m) - 1) * grow }
+
+// signed float height of a complex affine point (its conjugate gets the opposite sign)
+function complexHeight(pt) {
+  const im = Math.hypot(pt.x.im, pt.y.im)
+  const s = pt.y.im !== 0 ? Math.sign(pt.y.im) : (Math.sign(pt.x.im) || 1)
+  return s * Math.min(RHO_DISK * 0.75, HEIGHT_SCALE * im)
+}
+
+// Build screen-space marker descriptors (used by both rendering and hit-testing).
+function enumerateMarkers(result, proj) {
+  const out = []
+  for (const pt of result.affinePoints) {
+    if (pt.kind === 'real-affine') {
+      const [du, dv] = planeToDisk(pt.x.re, pt.y.re)
+      const P = proj(du, dv, 0)
+      out.push({ pt, color: '#ffffff', radius: markerRadius(pt.multiplicity, 4.5, 3), mult: pt.multiplicity,
+        sx: P.sx, sy: P.sy, depth: P.depth, glow: true })
+    } else if (pt.kind === 'complex-affine' && state.showComplexShadows) {
+      const [du, dv] = planeToDisk(pt.x.re, pt.y.re)
+      const h = complexHeight(pt)
+      const base = proj(du, dv, 0), top = proj(du, dv, h)
+      out.push({ pt, color: '#ff88cc', radius: markerRadius(pt.multiplicity, 4.5, 3), mult: pt.multiplicity,
+        sx: top.sx, sy: top.sy, depth: top.depth, baseSx: base.sx, baseSy: base.sy, connector: true })
+    }
+  }
+  if (state.showInfinityPoints) {
+    for (const pt of result.infinityPoints) {
+      const norm = normalizeInfPt(pt)
+      let theta, imag = 0
+      if (pt.kind === 'real-infinity') {
+        theta = Math.atan2(norm.Y.re, norm.X.re)
+      } else if (cAbs(norm.X) >= cAbs(norm.Y)) {
+        theta = Math.atan2(cDiv(norm.Y, norm.X).re, 1); imag = Math.hypot(norm.X.im, norm.Y.im)
+      } else {
+        theta = Math.atan2(1, cDiv(norm.X, norm.Y).re); imag = Math.hypot(norm.X.im, norm.Y.im)
+      }
+      const color = pt.kind === 'real-infinity' ? '#44e2cd' : '#ffafd3'
+      const rad = markerRadius(pt.multiplicity, 4, 2.4)
+      if (pt.kind === 'real-infinity') {
+        for (const t of [theta, theta + Math.PI]) {
+          const P = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0)
+          out.push({ pt, color, radius: rad, mult: pt.multiplicity, sx: P.sx, sy: P.sy, depth: P.depth })
+        }
+      } else {
+        const h = Math.min(RHO_DISK * 0.75, HEIGHT_SCALE * imag)
+        for (const [t, hh] of [[theta, h], [theta + Math.PI, -h]]) {
+          const bx = RHO_DISK * Math.cos(t), by = RHO_DISK * Math.sin(t)
+          const base = proj(bx, by, 0), top = proj(bx, by, hh)
+          out.push({ pt, color, radius: rad, mult: pt.multiplicity, sx: top.sx, sy: top.sy, depth: top.depth,
+            baseSx: base.sx, baseSy: base.sy, connector: true, faint: true })
+        }
+      }
+    }
+  }
+  return out
+}
+
+function drawMarker(ctx, m) {
+  if (m.baseSx !== undefined) {
+    ctx.save()
+    ctx.globalAlpha = m.faint ? 0.3 : 0.55
+    ctx.strokeStyle = m.color; ctx.lineWidth = 1
+    ctx.setLineDash([3, 4])
+    ctx.beginPath(); ctx.moveTo(m.baseSx, m.baseSy); ctx.lineTo(m.sx, m.sy); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.3; ctx.fillStyle = m.color
+    ctx.beginPath(); ctx.arc(m.baseSx, m.baseSy, 3, 0, 2 * Math.PI); ctx.fill()
+    ctx.restore()
+  }
+  if (m.glow) {
+    const g = ctx.createRadialGradient(m.sx, m.sy, 0, m.sx, m.sy, m.radius + 5)
+    g.addColorStop(0, 'rgba(255,255,255,0.3)'); g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.beginPath(); ctx.arc(m.sx, m.sy, m.radius + 5, 0, 2 * Math.PI); ctx.fillStyle = g; ctx.fill()
+  }
+  ctx.save()
+  ctx.globalAlpha = m.faint ? 0.65 : 1
+  ctx.beginPath(); ctx.arc(m.sx, m.sy, m.radius, 0, 2 * Math.PI)
+  ctx.fillStyle = m.color; ctx.fill()
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1; ctx.stroke()
+  if (m.mult >= 2) {  // outer ring emphasises higher multiplicity
+    ctx.globalAlpha = m.faint ? 0.4 : 0.8
+    ctx.beginPath(); ctx.arc(m.sx, m.sy, m.radius + 3, 0, 2 * Math.PI)
+    ctx.strokeStyle = m.color; ctx.lineWidth = 1; ctx.stroke()
+  }
+  ctx.restore()
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
 
 function render() {
   const [ctx, W, H] = prep()
-  const { cx, cy, radius, innerRect } = computeLayout(W, H)
-  const vp = state.viewport
-
+  const cx = W / 2, cy = H / 2
+  const radiusPx = Math.min(W, H) * 0.44
+  const pxScale = radiusPx / RHO_DISK
+  const proj = makeCamera(state.cam, cx, cy, pxScale)
   ctx.clearRect(0, 0, W, H)
 
-  // Layer 1: background (inherited from body)
-
-  // Layer 2: affine rectangle
+  // floor: subtle disk fill + reference circles (bunching near the rim shows the
+  // exponential compression) + radial spokes.
+  const ring = (rd, stroke, lw = 1, dash = null) => {
+    ctx.save(); ctx.strokeStyle = stroke; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash)
+    ctx.beginPath()
+    for (let i = 0; i <= 96; i++) { const t = 2 * Math.PI * i / 96; const P = proj(rd * Math.cos(t), rd * Math.sin(t), 0); i ? ctx.lineTo(P.sx, P.sy) : ctx.moveTo(P.sx, P.sy) }
+    ctx.closePath(); ctx.stroke(); ctx.restore()
+  }
   ctx.save()
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-  ctx.lineWidth = 1
-  ctx.strokeRect(innerRect.left, innerRect.top, innerRect.width, innerRect.height)
-  // Axis labels
-  ctx.fillStyle = 'rgba(255,255,255,0.18)'
-  ctx.font = '10px JetBrains Mono, monospace'
-  ctx.textAlign = 'center'
-  ctx.fillText(`x: [${vp.xmin}, ${vp.xmax}]`, cx, innerRect.bottom + 14)
-  ctx.textAlign = 'left'
-  ctx.fillText(`y: [${vp.ymin}, ${vp.ymax}]`, innerRect.right + 6, cy + 4)
-  ctx.restore()
-
-  // Layer 3: infinity circle
-  ctx.save()
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)'
-  ctx.lineWidth = 1
-  ctx.setLineDash([4, 6])
   ctx.beginPath()
-  ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
-  ctx.stroke()
-  ctx.setLineDash([])
-  // label
-  ctx.fillStyle = 'rgba(255,255,255,0.15)'
-  ctx.font = '9px JetBrains Mono, monospace'
-  ctx.textAlign = 'center'
-  ctx.fillText('RP¹ (line at ∞)', cx, cy - radius - 6)
+  for (let i = 0; i <= 96; i++) { const t = 2 * Math.PI * i / 96; const P = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0); i ? ctx.lineTo(P.sx, P.sy) : ctx.moveTo(P.sx, P.sy) }
+  ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fill()
   ctx.restore()
+  for (const rr of [1, 2, 3, 5, 8, 15, 40]) {
+    ring(rho(rr), rr === RHO_R0 ? 'rgba(181,196,255,0.28)' : 'rgba(255,255,255,0.06)')
+  }
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1
+  for (let k = 0; k < 12; k++) {
+    const t = 2 * Math.PI * k / 12
+    const A = proj(0, 0, 0), B = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0)
+    ctx.beginPath(); ctx.moveTo(A.sx, A.sy); ctx.lineTo(B.sx, B.sy); ctx.stroke()
+  }
+  ctx.restore()
+
+  // line at infinity = disk boundary
+  ring(RHO_DISK, 'rgba(255,255,255,0.30)', 1.2, [4, 6])
+  const topLabel = proj(0, RHO_DISK, 0)
+  ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.font = '9px JetBrains Mono, monospace'
+  ctx.textAlign = 'center'; ctx.fillText('RP¹ (line at ∞)', topLabel.sx, topLabel.sy - 6); ctx.restore()
 
   const result = state.result
   if (!result || !result.valid) {
-    // Draw empty canvas with hint
-    ctx.save()
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'
-    ctx.font = '13px Inter, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('Enter polynomials and press Compute', cx, cy)
-    ctx.restore()
+    ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.font = '13px Inter, sans-serif'
+    ctx.textAlign = 'center'; ctx.fillText('Enter polynomials and press Compute', cx, cy); ctx.restore()
     return
   }
 
-  const { fPoly, gPoly, affinePoints, infinityPoints } = result
+  // curves (cached disk-space segments, just re-projected)
+  drawSegments(ctx, proj, result.segF, 'rgba(100, 180, 255, 0.85)')
+  drawSegments(ctx, proj, result.segG, 'rgba(255, 175, 100, 0.85)')
 
-  // Layer 4: real curves (marching squares)
-  const segF = marchingSquares(fPoly, vp)
-  const segG = marchingSquares(gPoly, vp)
-
-  function drawCurveSegs(segs, color) {
-    ctx.save()
-    ctx.strokeStyle = color
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    for (const [x1, y1, x2, y2] of segs) {
-      const p1 = affinePtToCanvas(x1, y1, vp, innerRect)
-      const p2 = affinePtToCanvas(x2, y2, vp, innerRect)
-      ctx.moveTo(p1.px, p1.py)
-      ctx.lineTo(p2.px, p2.py)
-    }
-    ctx.stroke()
-    ctx.restore()
-  }
-
-  // Clip to inner rect for curve drawing
-  ctx.save()
-  ctx.beginPath()
-  ctx.rect(innerRect.left - 1, innerRect.top - 1, innerRect.width + 2, innerRect.height + 2)
-  ctx.clip()
-  drawCurveSegs(segF, 'rgba(100, 180, 255, 0.75)')
-  drawCurveSegs(segG, 'rgba(255, 175, 100, 0.75)')
-  ctx.restore()
-
-  // Layer 5-6: complex affine shadow lines + ghost points
-  if (state.showComplexShadows) {
-    for (const pt of affinePoints) {
-      if (pt.kind !== 'complex-affine') continue
-      const sx = pt.x.re, sy = pt.y.re  // shadow
-      const sc = affinePtToCanvas(sx, sy, vp, innerRect)
-
-      // shadow dot
-      ctx.save()
-      ctx.globalAlpha = 0.35
-      ctx.fillStyle = '#ff88cc'
-      ctx.beginPath()
-      ctx.arc(sc.px, sc.py, 4, 0, 2 * Math.PI)
-      ctx.fill()
-      ctx.restore()
-
-      // connector between conjugate pair
-      if (pt._conjugate) {
-        const cx2 = pt._conjugate.x.re, cy2 = pt._conjugate.y.re
-        const sc2 = affinePtToCanvas(cx2, cy2, vp, innerRect)
-        ctx.save()
-        ctx.globalAlpha = 0.2
-        ctx.strokeStyle = '#ff88cc'
-        ctx.lineWidth = 1
-        ctx.setLineDash([3, 4])
-        ctx.beginPath()
-        ctx.moveTo(sc.px, sc.py)
-        ctx.lineTo(sc2.px, sc2.py)
-        ctx.stroke()
-        ctx.setLineDash([])
-        ctx.restore()
-      }
-    }
-  }
-
-  // Layer 7: real affine dots
-  for (const pt of affinePoints) {
-    if (pt.kind !== 'real-affine') continue
-    const { px, py } = affinePtToCanvas(pt.x.re, pt.y.re, vp, innerRect)
-    // glow
-    const grad = ctx.createRadialGradient(px, py, 0, px, py, 8)
-    grad.addColorStop(0, 'rgba(255,255,255,0.3)')
-    grad.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.beginPath(); ctx.arc(px, py, 8, 0, 2 * Math.PI)
-    ctx.fillStyle = grad; ctx.fill()
-    // dot
-    ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI)
-    ctx.fillStyle = '#ffffff'; ctx.fill()
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke()
-  }
-
-  // Layer 8: infinity markers
-  if (state.showInfinityPoints) {
-    for (const pt of infinityPoints) {
-      const norm = normalizeInfPt(pt)
-      if (pt.kind === 'real-infinity') {
-        const theta = Math.atan2(norm.Y.re, norm.X.re)
-        drawRealInfinityPt(ctx, cx, cy, radius, theta)
-      } else {
-        // complex infinity: shadow direction
-        let shadowTheta
-        if (cAbs(norm.X) >= cAbs(norm.Y)) {
-          const t = cDiv(norm.Y, norm.X)
-          shadowTheta = Math.atan2(t.re, 1)
-        } else {
-          const s = cDiv(norm.X, norm.Y)
-          shadowTheta = Math.atan2(1, s.re)
-        }
-        drawComplexInfinityPt(ctx, cx, cy, radius, shadowTheta)
-      }
-    }
-  }
+  // points: depth-sorted so floating markers layer correctly under rotation
+  const markers = enumerateMarkers(result, proj)
+  markers.sort((a, b) => a.depth - b.depth)
+  for (const m of markers) drawMarker(ctx, m)
 }
 
-function drawRealInfinityPt(ctx, cx, cy, radius, theta) {
-  for (const t of [theta, theta + Math.PI]) {
-    const px = cx + radius * Math.cos(t)
-    const py = cy - radius * Math.sin(t)
-    ctx.save()
-    ctx.fillStyle = '#44e2cd'
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.arc(px, py, 5, 0, 2 * Math.PI)
-    ctx.fill(); ctx.stroke()
-    ctx.restore()
+function drawSegments(ctx, proj, segs, color) {
+  if (!segs) return
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath()
+  for (const [a, b, c, d] of segs) {
+    const P = proj(a, b, 0), Q = proj(c, d, 0)
+    ctx.moveTo(P.sx, P.sy); ctx.lineTo(Q.sx, Q.sy)
   }
-}
-
-function drawComplexInfinityPt(ctx, cx, cy, radius, shadowTheta) {
-  for (const t of [shadowTheta, shadowTheta + Math.PI]) {
-    const px = cx + radius * Math.cos(t)
-    const py = cy - radius * Math.sin(t)
-    ctx.save()
-    ctx.globalAlpha = 0.4
-    ctx.fillStyle = '#ffafd3'
-    ctx.strokeStyle = 'rgba(255,175,211,0.5)'
-    ctx.lineWidth = 1
-    ctx.setLineDash([2, 3])
-    ctx.beginPath()
-    ctx.arc(px, py, 4, 0, 2 * Math.PI)
-    ctx.fill(); ctx.stroke()
-    ctx.setLineDash([])
-    ctx.restore()
-  }
+  ctx.stroke(); ctx.restore()
 }
 
 // ── 14. Tooltip hit-testing ────────────────────────────────────────────────────
 
 function findNearestPoint(mouseX, mouseY, W, H) {
   if (!state.result || !state.result.valid) return null
-  const { cx, cy, radius, innerRect } = computeLayout(W, H)
-  const vp = state.viewport
-  const HIT_R = 12
-
-  const all = []
-
-  for (const pt of state.result.affinePoints) {
-    if (pt.kind === 'real-affine') {
-      const { px, py } = affinePtToCanvas(pt.x.re, pt.y.re, vp, innerRect)
-      all.push({ pt, px, py })
-    } else if (state.showComplexShadows) {
-      const { px, py } = affinePtToCanvas(pt.x.re, pt.y.re, vp, innerRect)
-      all.push({ pt, px, py })
-    }
-  }
-
-  if (state.showInfinityPoints) {
-    for (const pt of state.result.infinityPoints) {
-      const norm = normalizeInfPt(pt)
-      let theta
-      if (pt.kind === 'real-infinity') {
-        theta = Math.atan2(norm.Y.re, norm.X.re)
-      } else {
-        if (cAbs(norm.X) >= cAbs(norm.Y)) {
-          theta = Math.atan2(cDiv(norm.Y, norm.X).re, 1)
-        } else {
-          theta = Math.atan2(1, cDiv(norm.X, norm.Y).re)
-        }
-      }
-      const px = cx + radius * Math.cos(theta)
-      const py = cy - radius * Math.sin(theta)
-      all.push({ pt, px, py })
-    }
-  }
+  const cx = W / 2, cy = H / 2
+  const radiusPx = Math.min(W, H) * 0.44
+  const pxScale = radiusPx / RHO_DISK
+  const proj = makeCamera(state.cam, cx, cy, pxScale)
+  const HIT_R = 14
 
   let best = null, bestDist = HIT_R
-  for (const item of all) {
-    const d = Math.hypot(mouseX - item.px, mouseY - item.py)
-    if (d < bestDist) { bestDist = d; best = item }
+  for (const m of enumerateMarkers(state.result, proj)) {
+    const d = Math.hypot(mouseX - m.sx, mouseY - m.sy)
+    if (d < bestDist) { bestDist = d; best = m.pt }
   }
-  return best ? best.pt : null
+  return best
 }
 
 function fmtComplex(z, digits = 4) {
@@ -619,7 +583,7 @@ const state = {
   gStr: '2*y - 1',
   showComplexShadows: true,
   showInfinityPoints: true,
-  viewport: { xmin: -3, xmax: 3, ymin: -3, ymax: 3 },
+  cam: { az: 0, el: Math.PI / 2 },  // el = π/2 → top-down (flat) view
   result: null,
 }
 
@@ -703,7 +667,6 @@ function compute() {
   }
 
   const { affinePoints, infinityPoints } = adaptSolverPoints(solve.points)
-  linkConjugatePairs(affinePoints)
 
   const warnings = [...(solve.warnings ?? []), ...(solve.errors ?? [])]
   if (solve.status === 'common_component_suspected')
@@ -722,28 +685,14 @@ function compute() {
     attemptsTried: solve.attempts ? solve.attempts.length : 0,
     affinePoints, infinityPoints,
     solverPoints: solve.points,
+    // disk-space curve segments — extracted once here, only re-projected on rotate
+    segF: computeCurveSegments(fPoly),
+    segG: computeCurveSegments(gPoly),
     warnings,
   }
 
   updateReport()
   render()
-}
-
-function linkConjugatePairs(pts) {
-  const used = new Set()
-  for (let i = 0; i < pts.length; i++) {
-    if (used.has(i) || pts[i].kind !== 'complex-affine') continue
-    const cx_ = cConj(pts[i].x), cy_ = cConj(pts[i].y)
-    for (let j = i + 1; j < pts.length; j++) {
-      if (used.has(j) || pts[j].kind !== 'complex-affine') continue
-      if (cAbs(cSub(pts[j].x, cx_)) < POINT_DEDUP_TOL * 10 &&
-          cAbs(cSub(pts[j].y, cy_)) < POINT_DEDUP_TOL * 10) {
-        pts[i]._conjugate = pts[j]
-        pts[j]._conjugate = pts[i]
-        used.add(i); used.add(j); break
-      }
-    }
-  }
 }
 
 const STATUS_LABEL = {
@@ -833,13 +782,33 @@ togComplex.addEventListener('change', () => { state.showComplexShadows = togComp
 togInfinity.addEventListener('change', () => { state.showInfinityPoints = togInfinity.checked; render() })
 togWarnings.addEventListener('change', () => updateReport())
 
-// Tooltip
+// ── Orbit drag + hover tooltip ──────────────────────────────────────────────
+const EL_MIN = 0.12, EL_MAX = Math.PI / 2  // keep the camera above the plane
+let drag = null
+
+canvas.addEventListener('mousedown', e => {
+  drag = { x: e.clientX, y: e.clientY, az: state.cam.az, el: state.cam.el, moved: false }
+  tooltip.style.display = 'none'
+  canvas.style.cursor = 'grabbing'
+})
+window.addEventListener('mouseup', () => { drag = null; canvas.style.cursor = 'grab' })
+
 canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect()
   const mx = e.clientX - rect.left
   const my = e.clientY - rect.top
   const dpr = window.devicePixelRatio || 1
   const W = canvas.width / dpr, H = canvas.height / dpr
+
+  if (drag) {  // orbit the camera
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y
+    if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true
+    state.cam.az = drag.az - dx * 0.01
+    state.cam.el = Math.max(EL_MIN, Math.min(EL_MAX, drag.el - dy * 0.01))  // drag down → tilt edge-on
+    render()
+    return
+  }
+
   const pt = findNearestPoint(mx, my, W, H)
   if (pt) {
     tooltip.style.display = 'block'
@@ -854,7 +823,14 @@ canvas.addEventListener('mousemove', e => {
     tooltip.style.display = 'none'
   }
 })
-canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none' })
+canvas.addEventListener('mouseleave', () => { if (!drag) tooltip.style.display = 'none' })
+canvas.style.cursor = 'grab'
+
+// Reset-view button → top-down (flat) orientation
+const btnResetView = document.getElementById('btn-reset-view')
+if (btnResetView) btnResetView.addEventListener('click', () => {
+  state.cam.az = 0; state.cam.el = Math.PI / 2; render()
+})
 
 // Resize
 const ro = new ResizeObserver(() => render())

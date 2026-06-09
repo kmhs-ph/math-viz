@@ -139,6 +139,7 @@ function s3Irreps() {
         [tau1Id]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
         [tau2Id]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
       },
+      baseVec: [0, 1],
       desc: '<p><strong>Standard 2D.</strong> S<sub>3</sub> ≅ D<sub>3</sub>: generators act as reflections in lines at 0° and 60°.</p><p>Orbit: equilateral triangle.</p>',
     }),
   ]
@@ -168,6 +169,7 @@ function s4Irreps() {
         [id23]: [[ 0.5,  _r3h], [ _r3h, -0.5]],
         [id34]: [[ 0.5, -_r3h], [-_r3h, -0.5]],
       },
+      baseVec: [0, 1],
       desc: '<p><strong>ρ₂ (2D).</strong> Pulled back from the 2D irrep of S<sub>3</sub> via S<sub>4</sub> ↠ S<sub>4</sub>/V<sub>4</sub> ≅ S<sub>3</sub>.</p>',
     }),
     buildIrrep({
