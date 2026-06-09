@@ -279,24 +279,28 @@ function makeCamera(cam, cx, cy, pxScale) {
 }
 
 // ── Curve extraction in disk space (marching squares) ─────────────────────────
-// Sampled uniformly in screen/disk space so resolution is even. Each disk sample is
-// pulled back through ρ⁻¹ to a projective point [x:y:1] (or [cosθ:sinθ:0] on the rim)
-// and the HOMOGENISED form F is evaluated on the point normalised to ‖·‖∞ = 1. F is
-// bounded (coords ≤ 1) and varies smoothly across the boundary Z = 0, so there is no
-// magnitude blow-up near the rim — the contour stays smooth and meets the boundary
-// circle exactly at the curve's real points at infinity (where the leading form = 0).
-// On the affine part sign(F) = sign(f), so the zero set is unchanged.
+// Sampled uniformly in screen/disk space so resolution is even. A disk sample in
+// direction t at display radius rd is the projective point on that ray
+//   [cos t : sin t : μ]   with   μ = 1 / (affine radius)   (μ = 0 on the rim = ∞).
+// Because the HOMOGENISED form F is homogeneous, only the direction of this vector
+// matters; the first two coords are already ≤ 1, so bounding it just needs a divide by
+// max(1, μ). F is then bounded and varies smoothly across the boundary Z = 0 — no
+// magnitude blow-up near the rim, so the contour stays smooth and meets the boundary
+// circle exactly at the curve's real points at infinity. On the affine part
+// sign(F) = sign(f), so the zero set is unchanged.
 
 const CURVE_N = 220
 
 function sampleField(poly, deg, du, dv, R) {
   const rd = Math.hypot(du, dv)
   let X, Y, Z
-  if (rd < 1e-12) { X = 0; Y = 0; Z = 1 }
-  else if (rd < R) { const r = affineRadius(rd); X = r * du / rd; Y = r * dv / rd; Z = 1 }
-  else { X = du / rd; Y = dv / rd; Z = 0 }            // direction = point at infinity
-  const m = Math.max(Math.abs(X), Math.abs(Y), Math.abs(Z)) || 1
-  X /= m; Y /= m; Z /= m
+  if (rd < 1e-12) { X = 0; Y = 0; Z = 1 }            // origin → [0:0:1]
+  else {
+    X = du / rd; Y = dv / rd                          // (cos t, sin t), already ‖·‖ = 1
+    Z = rd < R ? 1 / affineRadius(rd) : 0             // μ, vanishing on the rim
+    const m = Math.max(1, Z)
+    X /= m; Y /= m; Z /= m
+  }
   let val = 0
   for (const [k, cv] of poly) {
     const [i, j] = biParsKey(k)
