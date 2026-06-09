@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/math-viz/assets/bezout-BMjvmxqC.js"></script>
-  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-CcbxqEJW.js">
-  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-DwGuSR1P.css">
+  <script type="module" crossorigin src="/math-viz/assets/bezout-CbQkTtDf.js"></script>
+  <link rel="modulepreload" crossorigin href="/math-viz/assets/style-B-lxoyHq.js">
+  <link rel="stylesheet" crossorigin href="/math-viz/assets/style-B8dqRTpu.css">
 </head>
 <body>
 
@@ -85,7 +85,10 @@
     <div class="bezout-canvas-area">
       <canvas id="canvas"></canvas>
       <div class="bezout-view-controls">
-        <span class="bezout-view-hint">drag to rotate</span>
+        <span class="bezout-view-hint">drag to rotate · scroll to zoom</span>
+        <button id="btn-zoom-out" class="bezout-view-btn" title="Zoom out">−</button>
+        <span id="zoom-label" class="bezout-zoom-label">1.0×</span>
+        <button id="btn-zoom-in" class="bezout-view-btn" title="Zoom in">+</button>
         <button id="btn-reset-view" class="bezout-view-btn">Reset view</button>
       </div>
       <div id="bezout-tooltip" class="bezout-tooltip"></div>
