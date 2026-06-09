@@ -302,35 +302,55 @@ function evalPolyReal(poly, x, y) {
   return val
 }
 
+// Sample value at a disk coordinate. Inside the disk we pull back through ρ⁻¹ and
+// evaluate the polynomial. OUTSIDE the disk (= beyond infinity) we evaluate the
+// far-field sign at a huge radius: there the leading homogeneous form dominates, so
+// the contour meets the boundary circle exactly at the curve's real points at ∞.
+const FAR_R = 1e6
+function sampleField(poly, du, dv, R) {
+  const rd = Math.hypot(du, dv)
+  if (rd < 1e-12) return evalPolyReal(poly, 0, 0)
+  const r = rd < R ? rhoInv(rd) : FAR_R
+  return evalPolyReal(poly, r * du / rd, r * dv / rd)
+}
+
+// keep the portion of segment P1→P2 with |·| ≤ R (clip against the disk boundary)
+function clipSegmentToDisk(x1, y1, x2, y2, R) {
+  const dx = x2 - x1, dy = y2 - y1
+  const A = dx * dx + dy * dy
+  if (A < 1e-18) return Math.hypot(x1, y1) <= R ? [x1, y1, x2, y2] : null
+  const B = 2 * (x1 * dx + y1 * dy), Cc = x1 * x1 + y1 * y1 - R * R
+  const disc = B * B - 4 * A * Cc
+  if (disc <= 0) return null
+  const sq = Math.sqrt(disc)
+  const t0 = Math.max(0, (-B - sq) / (2 * A)), t1 = Math.min(1, (-B + sq) / (2 * A))
+  if (t0 > t1) return null
+  return [x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy]
+}
+
 function computeCurveSegments(poly) {
   const N = CURVE_N, R = RHO_DISK, step = 2 * R / N
   const ox = step * 1.7e-3, oy = step * 1.3e-3   // anti-degeneracy nudge
+  const coord = k => -R + k * step
   const grid = []
   for (let j = 0; j <= N; j++) {
     const row = []
-    for (let i = 0; i <= N; i++) {
-      const du = -R + i * step + ox, dv = -R + j * step + oy
-      const rd = Math.hypot(du, dv)
-      if (rd >= R) { row.push(NaN); continue }   // outside the disk
-      const r = rhoInv(rd)
-      const ax = rd < 1e-12 ? 0 : r * du / rd
-      const ay = rd < 1e-12 ? 0 : r * dv / rd
-      row.push(evalPolyReal(poly, ax, ay))
-    }
+    for (let i = 0; i <= N; i++) row.push(sampleField(poly, coord(i) + ox, coord(j) + oy, R))
     grid.push(row)
   }
   const segs = []
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a0 = coord(i) + ox, a1 = a0 + step, b0 = coord(j) + oy, b1 = b0 + step
+    // skip cells entirely outside the disk (their contour, if any, clips to nothing)
+    if (Math.hypot(a0, b0) > R && Math.hypot(a1, b0) > R && Math.hypot(a0, b1) > R && Math.hypot(a1, b1) > R) continue
     const v00 = grid[j][i], v10 = grid[j][i + 1], v01 = grid[j + 1][i], v11 = grid[j + 1][i + 1]
-    if (Number.isNaN(v00) || Number.isNaN(v10) || Number.isNaN(v01) || Number.isNaN(v11)) continue
-    const a0 = -R + i * step + ox, a1 = a0 + step, b0 = -R + j * step + oy, b1 = b0 + step
     const interp = (a, b, va, vb) => a + (b - a) * (-va / (vb - va))
     const s = (v00 < 0 ? 8 : 0) | (v10 < 0 ? 4 : 0) | (v11 < 0 ? 2 : 0) | (v01 < 0 ? 1 : 0)
     const bottom = () => [interp(a0, a1, v00, v10), b0]
     const top    = () => [interp(a0, a1, v01, v11), b1]
     const left   = () => [a0, interp(b0, b1, v00, v01)]
     const right  = () => [a1, interp(b0, b1, v10, v11)]
-    const add = (p, q) => segs.push([p[0], p[1], q[0], q[1]])
+    const add = (p, q) => { const c = clipSegmentToDisk(p[0], p[1], q[0], q[1], R); if (c) segs.push(c) }
     switch (s) {
       case 1: case 14: add(left(), top());     break
       case 2: case 13: add(top(), right());    break
