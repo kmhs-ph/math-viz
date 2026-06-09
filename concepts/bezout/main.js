@@ -250,6 +250,16 @@ function planeToDisk(ax, ay) {
   return [g * ax / r, g * ay / r]
 }
 
+// Reference circles at (mostly) equal affine spacing: in the display they crowd
+// toward the rim, which is exactly what makes the Poincaré magnification visible.
+// Stop just short of the boundary so the densest rings stay distinguishable.
+const REF_CIRCLES = (() => {
+  const out = []
+  for (let r = 0.5; r <= 4; r += 0.5) out.push(r)
+  for (let r = 5; r <= 100; r += 1) { if (RHO_DISK - displayRadius(r) < 0.03) break; out.push(r) }
+  return out
+})()
+
 // ── 3D camera (orthographic orbit) ────────────────────────────────────────────
 // The disk lives in the world z=0 plane; complex points float along z. el = π/2 is
 // the top-down view (reset state) and reproduces a flat 2D look.
@@ -269,29 +279,30 @@ function makeCamera(cam, cx, cy, pxScale) {
 }
 
 // ── Curve extraction in disk space (marching squares) ─────────────────────────
-// Sampled uniformly in screen/disk space so resolution is even; each disk sample
-// is pulled back through ρ⁻¹ to an affine point and the polynomial evaluated there.
-// Near the boundary r→∞, so the curve approaches the directions where the leading
-// form vanishes — i.e. it meets the infinity circle exactly at its points at ∞.
+// Sampled uniformly in screen/disk space so resolution is even. Each disk sample is
+// pulled back through ρ⁻¹ to a projective point [x:y:1] (or [cosθ:sinθ:0] on the rim)
+// and the HOMOGENISED form F is evaluated on the point normalised to ‖·‖∞ = 1. F is
+// bounded (coords ≤ 1) and varies smoothly across the boundary Z = 0, so there is no
+// magnitude blow-up near the rim — the contour stays smooth and meets the boundary
+// circle exactly at the curve's real points at infinity (where the leading form = 0).
+// On the affine part sign(F) = sign(f), so the zero set is unchanged.
 
-const CURVE_N = 200
+const CURVE_N = 220
 
-function evalPolyReal(poly, x, y) {
-  let val = 0
-  for (const [k, cv] of poly) { const [pi, pj] = biParsKey(k); val += Number(cv) * Math.pow(x, pi) * Math.pow(y, pj) }
-  return val
-}
-
-// Sample value at a disk coordinate. Inside the disk we pull back through ρ⁻¹ and
-// evaluate the polynomial. OUTSIDE the disk (= beyond infinity) we evaluate the
-// far-field sign at a huge radius: there the leading homogeneous form dominates, so
-// the contour meets the boundary circle exactly at the curve's real points at ∞.
-const FAR_R = 1e6
-function sampleField(poly, du, dv, R) {
+function sampleField(poly, deg, du, dv, R) {
   const rd = Math.hypot(du, dv)
-  if (rd < 1e-12) return evalPolyReal(poly, 0, 0)
-  const r = rd < R ? affineRadius(rd) : FAR_R
-  return evalPolyReal(poly, r * du / rd, r * dv / rd)
+  let X, Y, Z
+  if (rd < 1e-12) { X = 0; Y = 0; Z = 1 }
+  else if (rd < R) { const r = affineRadius(rd); X = r * du / rd; Y = r * dv / rd; Z = 1 }
+  else { X = du / rd; Y = dv / rd; Z = 0 }            // direction = point at infinity
+  const m = Math.max(Math.abs(X), Math.abs(Y), Math.abs(Z)) || 1
+  X /= m; Y /= m; Z /= m
+  let val = 0
+  for (const [k, cv] of poly) {
+    const [i, j] = biParsKey(k)
+    val += Number(cv) * Math.pow(X, i) * Math.pow(Y, j) * Math.pow(Z, deg - i - j)
+  }
+  return val
 }
 
 // keep the portion of segment P1→P2 with |·| ≤ R (clip against the disk boundary)
@@ -312,10 +323,11 @@ function computeCurveSegments(poly) {
   const N = CURVE_N, R = RHO_DISK, step = 2 * R / N
   const ox = step * 1.7e-3, oy = step * 1.3e-3   // anti-degeneracy nudge
   const coord = k => -R + k * step
+  const deg = degreeTotal(poly)
   const grid = []
   for (let j = 0; j <= N; j++) {
     const row = []
-    for (let i = 0; i <= N; i++) row.push(sampleField(poly, coord(i) + ox, coord(j) + oy, R))
+    for (let i = 0; i <= N; i++) row.push(sampleField(poly, deg, coord(i) + ox, coord(j) + oy, R))
     grid.push(row)
   }
   const segs = []
@@ -459,13 +471,13 @@ function render() {
   for (let i = 0; i <= 96; i++) { const t = 2 * Math.PI * i / 96; const P = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0); i ? ctx.lineTo(P.sx, P.sy) : ctx.moveTo(P.sx, P.sy) }
   ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fill()
   ctx.restore()
-  // reference circles at these affine radii; r=3 is highlighted as the ≈-identity edge
-  for (const rr of [1, 2, 3, 5, 8, 15, 40]) {
-    ring(displayRadius(rr), rr === 3 ? 'rgba(181,196,255,0.28)' : 'rgba(255,255,255,0.06)')
+  // reference circles (equal affine spacing → crowd at rim); r=3 = ≈-identity edge
+  for (const rr of REF_CIRCLES) {
+    ring(displayRadius(rr), rr === 3 ? 'rgba(181,196,255,0.30)' : 'rgba(255,255,255,0.06)')
   }
   ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1
-  for (let k = 0; k < 12; k++) {
-    const t = 2 * Math.PI * k / 12
+  for (let k = 0; k < 16; k++) {
+    const t = 2 * Math.PI * k / 16
     const A = proj(0, 0, 0), B = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0)
     ctx.beginPath(); ctx.moveTo(A.sx, A.sy); ctx.lineTo(B.sx, B.sy); ctx.stroke()
   }
