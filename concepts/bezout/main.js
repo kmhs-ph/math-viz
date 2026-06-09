@@ -226,47 +226,27 @@ function prep() {
 
 // ── Radial compression ρ(r) ───────────────────────────────────────────────────
 // Squeezes all of R² into a disk of radius RHO_DISK so the line at infinity is a
-// finite circle. ρ is the identity for r ≤ RHO_R0 (the undistorted "normal range"),
-// saturates as R − C·e^(−λr) → RHO_DISK for r ≥ RHO_R1, and is joined by a C²
-// smootherstep blend between. λ, C are chosen so the asymptote is tangent to the
-// identity at RHO_R0 (value + slope match), keeping the transition gentle.
+// finite circle, using the exact Poincaré-disk map in closed form:
+//   ρ(r) = R · tanh(r / R)
+// Near the origin tanh(x) ≈ x, so this is automatically ≈ the identity (no separate
+// "normal range" or transition zone needed); as r → ∞, tanh → 1, so ρ → R. Its inverse
+//   affineRadius(u) = R · artanh(u / R) = (R/2)·ln((R+u)/(R−u))
+// is exactly the Poincaré geodesic distance from the centre, and the induced radial
+// scale dr/du = R²/(R²−u²) is the (first-power) Poincaré conformal factor — so far-away
+// regions crowd the rim exponentially, as in the Poincaré disk.
 
-const RHO_R0     = 3
-const RHO_R1     = 4.5   // end of C² transition; < RHO_DISK so the blend never overshoots
-const RHO_DISK   = 5
-const RHO_LAMBDA = 1 / (RHO_DISK - RHO_R0)
-const RHO_C      = (RHO_DISK - RHO_R0) * Math.exp(RHO_LAMBDA * RHO_R0)
+const RHO_DISK = 5
 
-function smootherstep(t) { return t * t * t * (t * (t * 6 - 15) + 10) }  // C²: f'=f''=0 at 0,1
-function rhoAsymptote(r) { return RHO_DISK - RHO_C * Math.exp(-RHO_LAMBDA * r) }
-function rho(r) {
-  if (r <= RHO_R0) return r
-  if (r >= RHO_R1) return rhoAsymptote(r)
-  const w = smootherstep((r - RHO_R0) / (RHO_R1 - RHO_R0))
-  return (1 - w) * r + w * rhoAsymptote(r)
-}
-
-// Monotone inverse via a precomputed table (rho is monotonically increasing).
-const RHO_INV = (() => {
-  const M = 4000, rMax = 24
-  const arr = new Float64Array(M + 1)
-  for (let i = 0; i <= M; i++) arr[i] = rho(i * rMax / M)
-  return { arr, M, rMax }
-})()
-function rhoInv(target) {
-  const { arr, M, rMax } = RHO_INV
-  if (target <= 0) return 0
-  if (target >= arr[M]) return rMax
-  let lo = 0, hi = M
-  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (arr[mid] <= target) lo = mid; else hi = mid }
-  const f = (target - arr[lo]) / ((arr[hi] - arr[lo]) || 1)
-  return (lo + f) * rMax / M
+function displayRadius(r) { return RHO_DISK * Math.tanh(r / RHO_DISK) }       // plane → disk
+function affineRadius(u) {                                                    // disk → plane
+  const t = Math.min(Math.max(u / RHO_DISK, 0), 1 - 1e-12)                    // guard the rim
+  return RHO_DISK * Math.atanh(t)
 }
 // affine plane point → compressed disk coordinate (plane units, |·| < RHO_DISK)
 function planeToDisk(ax, ay) {
   const r = Math.hypot(ax, ay)
   if (r < 1e-12) return [0, 0]
-  const g = rho(r)
+  const g = displayRadius(r)
   return [g * ax / r, g * ay / r]
 }
 
@@ -310,7 +290,7 @@ const FAR_R = 1e6
 function sampleField(poly, du, dv, R) {
   const rd = Math.hypot(du, dv)
   if (rd < 1e-12) return evalPolyReal(poly, 0, 0)
-  const r = rd < R ? rhoInv(rd) : FAR_R
+  const r = rd < R ? affineRadius(rd) : FAR_R
   return evalPolyReal(poly, r * du / rd, r * dv / rd)
 }
 
@@ -479,8 +459,9 @@ function render() {
   for (let i = 0; i <= 96; i++) { const t = 2 * Math.PI * i / 96; const P = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0); i ? ctx.lineTo(P.sx, P.sy) : ctx.moveTo(P.sx, P.sy) }
   ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fill()
   ctx.restore()
+  // reference circles at these affine radii; r=3 is highlighted as the ≈-identity edge
   for (const rr of [1, 2, 3, 5, 8, 15, 40]) {
-    ring(rho(rr), rr === RHO_R0 ? 'rgba(181,196,255,0.28)' : 'rgba(255,255,255,0.06)')
+    ring(displayRadius(rr), rr === 3 ? 'rgba(181,196,255,0.28)' : 'rgba(255,255,255,0.06)')
   }
   ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1
   for (let k = 0; k < 12; k++) {
