@@ -227,20 +227,19 @@ function prep() {
 // ── Radial compression ρ(r) ───────────────────────────────────────────────────
 // Squeezes all of R² into a disk of radius RHO_DISK so the line at infinity is a
 // finite circle, using the exact Poincaré-disk map in closed form:
-//   ρ(r) = R · tanh(r / R)
-// Near the origin tanh(x) ≈ x, so this is automatically ≈ the identity (no separate
-// "normal range" or transition zone needed); as r → ∞, tanh → 1, so ρ → R. Its inverse
-//   affineRadius(u) = R · artanh(u / R) = (R/2)·ln((R+u)/(R−u))
-// is exactly the Poincaré geodesic distance from the centre, and the induced radial
-// scale dr/du = R²/(R²−u²) is the (first-power) Poincaré conformal factor — so far-away
-// regions crowd the rim exponentially, as in the Poincaré disk.
+//   ρ(r) = R · tanh(r · zoom / R)
+// Near the origin tanh(x) ≈ x, so this is automatically ≈ the identity (scaled by zoom);
+// as r → ∞, tanh → 1, so ρ → R. The displayed disk size (R, in pixels) is fixed; `zoom`
+// only changes the affine-to-hyperbolic scale: larger zoom magnifies the centre (less of
+// the plane fits the undistorted core), smaller zoom shows more. The induced scale stays
+// dr/du = R/(zoom·(1−(u/R)²)) ∝ 1/(R²−u²) — still the first-power Poincaré conformal factor.
 
 const RHO_DISK = 5
 
-function displayRadius(r) { return RHO_DISK * Math.tanh(r / RHO_DISK) }       // plane → disk
-function affineRadius(u) {                                                    // disk → plane
-  const t = Math.min(Math.max(u / RHO_DISK, 0), 1 - 1e-12)                    // guard the rim
-  return RHO_DISK * Math.atanh(t)
+function displayRadius(r) { return RHO_DISK * Math.tanh(r * state.zoom / RHO_DISK) }   // plane → disk
+function affineRadius(u) {                                                              // disk → plane
+  const t = Math.min(Math.max(u / RHO_DISK, 0), 1 - 1e-12)                              // guard the rim
+  return (RHO_DISK / state.zoom) * Math.atanh(t)
 }
 // affine plane point → compressed disk coordinate (plane units, |·| < RHO_DISK)
 function planeToDisk(ax, ay) {
@@ -250,15 +249,18 @@ function planeToDisk(ax, ay) {
   return [g * ax / r, g * ay / r]
 }
 
-// Reference circles at (mostly) equal affine spacing: in the display they crowd
-// toward the rim, which is exactly what makes the Poincaré magnification visible.
-// Stop just short of the boundary so the densest rings stay distinguishable.
-const REF_CIRCLES = (() => {
+// Reference circles at equal affine spacing (scaled to the current zoom): in the display
+// they crowd toward the rim, which is what makes the Poincaré magnification visible.
+function refCircleRadii() {
   const out = []
-  for (let r = 0.5; r <= 4; r += 0.5) out.push(r)
-  for (let r = 5; r <= 100; r += 1) { if (RHO_DISK - displayRadius(r) < 0.03) break; out.push(r) }
+  const step = (RHO_DISK / state.zoom) * 0.15   // ~constant on-screen density across zooms
+  for (let k = 1; k <= 80; k++) {
+    const r = k * step
+    if (RHO_DISK - displayRadius(r) < 0.03) break   // stop just short of the rim
+    out.push(r)
+  }
   return out
-})()
+}
 
 // ── 3D camera (orthographic orbit) ────────────────────────────────────────────
 // The disk lives in the world z=0 plane; complex points float along z. el = π/2 is
@@ -475,10 +477,8 @@ function render() {
   for (let i = 0; i <= 96; i++) { const t = 2 * Math.PI * i / 96; const P = proj(RHO_DISK * Math.cos(t), RHO_DISK * Math.sin(t), 0); i ? ctx.lineTo(P.sx, P.sy) : ctx.moveTo(P.sx, P.sy) }
   ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fill()
   ctx.restore()
-  // reference circles (equal affine spacing → crowd at rim); r=3 = ≈-identity edge
-  for (const rr of REF_CIRCLES) {
-    ring(displayRadius(rr), rr === 3 ? 'rgba(181,196,255,0.30)' : 'rgba(255,255,255,0.06)')
-  }
+  // reference circles (equal affine spacing → crowd at rim)
+  for (const rr of refCircleRadii()) ring(displayRadius(rr), 'rgba(255,255,255,0.06)')
   ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1
   for (let k = 0; k < 16; k++) {
     const t = 2 * Math.PI * k / 16
@@ -601,8 +601,11 @@ const state = {
   showComplexShadows: true,
   showInfinityPoints: true,
   cam: { az: 0, el: Math.PI / 2 },  // el = π/2 → top-down (flat) view
+  zoom: 1,                          // internal magnification (disk size on screen is fixed)
   result: null,
 }
+
+const ZOOM_MIN = 0.1, ZOOM_MAX = 30
 
 const inputF = document.getElementById('input-f')
 const inputG = document.getElementById('input-g')
@@ -843,11 +846,39 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseleave', () => { if (!drag) tooltip.style.display = 'none' })
 canvas.style.cursor = 'grab'
 
-// Reset-view button → top-down (flat) orientation
+// ── Zoom (internal magnification; the disk's on-screen size is fixed) ──────────
+// The radial map ρ depends on state.zoom, so the cached disk-space curve segments
+// must be re-extracted when the zoom changes.
+const zoomLabel = document.getElementById('zoom-label')
+function updateZoomLabel() { if (zoomLabel) zoomLabel.textContent = `${state.zoom.toFixed(state.zoom < 1 ? 2 : 1)}×` }
+function recomputeCurves() {
+  if (state.result && state.result.valid) {
+    state.result.segF = computeCurveSegments(state.result.fPoly)
+    state.result.segG = computeCurveSegments(state.result.gPoly)
+  }
+  updateZoomLabel()
+  render()
+}
+function setZoom(z) { state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); recomputeCurves() }
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault()
+  setZoom(state.zoom * Math.exp(-e.deltaY * 0.0015))   // scroll up → zoom in
+}, { passive: false })
+
+const btnZoomIn = document.getElementById('btn-zoom-in')
+const btnZoomOut = document.getElementById('btn-zoom-out')
+if (btnZoomIn) btnZoomIn.addEventListener('click', () => setZoom(state.zoom * 1.3))
+if (btnZoomOut) btnZoomOut.addEventListener('click', () => setZoom(state.zoom / 1.3))
+
+// Reset-view button → top-down (flat) orientation + default zoom
 const btnResetView = document.getElementById('btn-reset-view')
 if (btnResetView) btnResetView.addEventListener('click', () => {
-  state.cam.az = 0; state.cam.el = Math.PI / 2; render()
+  state.cam.az = 0; state.cam.el = Math.PI / 2
+  setZoom(1)
 })
+
+updateZoomLabel()
 
 // Resize
 const ro = new ResizeObserver(() => render())
